@@ -11,9 +11,9 @@ Once Spinnaker SDK is installed, the user can start using the application using 
 
 For using the python script version of REVEALS, the user should do the following after installing spinnaker SDK:
 1. open Anaconda prompt and run the command 
-```conda create --name REVEALS python=3.7```
+```conda create --name reveals python=3.7```
 to create a new environment. Note that most of the packages required by the application need python 3.7, so it is recommended to make the environment using that.
-2. Activate the environment just created with ```conda activate REVEALS```
+2. Activate the environment just created with ```conda activate reveals```
 3. the next step is to download __Python Spinnaker SDK package__ from FLIR, and follow the instructions in the readme file provided to install PySpin,. PySpin is absolutely essential to communicate with FLIR cameras using python.
 4. REVEALS python script requires a number of packages, which can be installed using the following set of commands <br>
     ```pip install tkinter``` <br>
@@ -22,6 +22,7 @@ to create a new environment. Note that most of the packages required by the appl
     ```pip install opecv-python``` <br>
     ```pip install pandas``` <br>
     ```pip install numpy``` <br>
+5. The environment is now ready to run __reveals.py__
   
 
 
