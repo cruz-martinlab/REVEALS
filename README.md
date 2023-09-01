@@ -10,5 +10,7 @@ In order to use the packaged windows application, please download the "REVEALS d
 Once the application is downloaded, the user will then need to install Spinnaker Full SDK (https://www.flir.com/products/spinnaker-sdk/?vertical=machine+vision&segment=iis) in order to recognise FLIR cameras as a vlid USB device. 
 Once Spinnaker SDK is installed, the user can start using the application using REVEALS.exe file in the REVEALS dist folder. The instructions for usage can be found in the manuscript describing the GUI. 
 
-
-
+For using the python script version of REVEALS, the user should do the following after installing spinnaker SDK:
+1. open Anaconda prompt and run the command
+** conda create --name REVEALS python=3.7**
+to create a new environment. Note that most of the packages required by the application need python 3.7, so it is recommended to make the environment using that
