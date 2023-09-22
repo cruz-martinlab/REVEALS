@@ -16,7 +16,7 @@ to create a new environment. Note that most of the packages required by the appl
 2. Activate the environment just created with ```conda activate reveals```
 3. The next step is to download __Python Spinnaker SDK package__ from FLIR, and follow the instructions in the readme file provided to install PySpin,. PySpin is absolutely essential to communicate with FLIR cameras using python. Make sure to install the PySpin corresponding to python 3.7, as well as your operating system (64X or 32X).
 4. REVEALS python script requires a number of packages, which can be installed using the following set of commands in the Anaconda prompt terminal <br>
-    ```pip install tkinter``` <br>
+    ```pip install tk``` <br>
     ```pip install simple-pyspin``` <br>
     ```pip install --upgrade Pillow``` <br>
     ```pip install opecv-python``` <br>
