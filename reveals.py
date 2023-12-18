@@ -1,12 +1,21 @@
+#tkinter importing for GUI build
 import tkinter as tk
 from tkinter import ttk
+from tkinter import filedialog
+
+#threading for concurrent processes
 import threading
 from threading import Thread
-from tkinter import filedialog
+
+#import camera module
 from simple_pyspin import Camera,list_cameras
 from PIL import Image
-import os
+
+#import opencv for video handling and writing
 import cv2
+
+#import other system requirements
+import os
 import sys
 import pandas as pd
 from os import listdir
@@ -20,6 +29,9 @@ from tkinter import messagebox
 import gc
 ###################################################################################
 # Threads
+
+
+#thread for starting and stopping camera streams in record tab
 def threading():
     t=Thread(target=stop_stream)
     t.start()
@@ -29,6 +41,7 @@ def threading1():
     t1.start()
 
 
+#thread for starting and stopping camera streams in setup tab
 def crop_thread():
     t4=Thread(target=Stream_camera)
     t4.start()
@@ -37,10 +50,14 @@ def StopCam2():
     t2=Thread(target=Stop_stream_camera)
     t2.start()
 
+
+#thread for starting recording of videos
 def record_start():
     t3=Thread(target=record_sync)
     t3.start()
 
+
+#threse three threads individually control writing for each of the three cameras. They are responsible for creating the videos
 def cam1thread(im_ar):
     t5=Thread(target=Cam1write,args=(im_ar,))
     t5.start()
@@ -54,6 +71,7 @@ def cam3thread(im_ar):
     t7.start()
 
 
+# this thread decides handles writing of leftover frames after recording is done
 def write_video():
     global ncam
     t8=Thread(target=write_video1)
@@ -65,25 +83,30 @@ def write_video():
         t10=Thread(target=write_video3)
         t10.start()
 
+
+#this thread controls abortion of recording
 def abort_thread():
     t4=Thread(target=abort_record)
     t4.start()
 
 ###################################################################################
-
+#the following three functions control writing each of the videos (1000 feames each) for each of the three cameras. These functions only control writing and not when to write. Each of them produces a flag when activated that is monitored by the main thread to decide when to start writing the next video without overloading the processor. 
 def Cam1write(im_ar):
-    global opdir1
-    global running_flag1
+    global opdir1 #directory for saving video
+    global running_flag1 #flag to indicate writing is going on
     running_flag1=1
     output_dir=opdir1
+    #get number of frames
     n=int(len(im_ar))
+    #get dimensions of each frame
     height,width=im_ar[0].shape
     size = (width,height)
     count=1 
 
+    #name the video "behavcam_[number]"
     item=str('behavcam_')+str(count-1)+str('.avi')
 
-
+    #this loop is reponsible for finding out the last written behavcam_[number] and making the current one a number higher than that
     if os.path.exists(os.path.join(output_dir, item)):
         flag_name_check=0
         while flag_name_check==0:
@@ -96,12 +119,13 @@ def Cam1write(im_ar):
     item=str('behavcam_')+str(count-1)+str('.avi') 
     count=count+1
     
+    #write the video
     out = cv2.VideoWriter(os.path.join(output_dir, item), cv2.VideoWriter_fourcc(*'MJPG'), 30, size, False)
 
     for i in range(n):
         out.write(im_ar[i])
     out.release()
-    running_flag1=0
+    running_flag1=0 #turn the flag off to indicate that this process is free and can be used again
 
 
 def Cam2write(im_ar):
@@ -171,12 +195,13 @@ def Cam3write(im_ar):
 ###################################################################################
 
 # Camera Select Options
+#this will make the dropdown choices for camera selection in setup tab
 options = [
     "Camera 1",
     "Camera 2",
     "Camera 3"
 ]
-
+#this will make the dropdown choices for fps selection in record tab
 fps_options = [15,30,45,60]
 
 
@@ -184,24 +209,28 @@ fps_options = [15,30,45,60]
 def get_length(val):
   return val[1]
 
+#this function has multiple purposes. First is to detect how many FLIR cameras are connected. Second is to arrange them in serial number order. Third is to reset their crop, gain and exposure values since FLIR cameras tend to remember the last used values.
 def connect():
-    global ncam 
-    global cama
-    global crops
-    global gains
-    global exposures
-    global cam_serial
+    #the following global variables are common to most functions
+    global ncam #stores number of cameras
+    global cama #stores a list of serial number sorted cameras
+    global crops #stores cropping values for each cmaera
+    global gains #stores gain values for each camera
+    global exposures #stores exposure values for each camera
+    global cam_serial #stores sorted serial numbers for each camera
 
     cama=[]
     
     ncam=len(list_cameras())
-    camb=[[]*2]*ncam
+    camb=[[]*2]*ncam #temporary array for sorting
 
     for i in range(ncam):
         cam_temp=Camera(i)
         cam_temp.init()
         serial=cam_temp.get_info('DeviceSerialNumber')['value']
-        camb[i]=[i,int(serial)]
+        camb[i]=[i,int(serial)] #store camera serial number and associated camera number as read in by the device
+
+        #reset camera properties
         cam_temp.Width = cam_temp.get_info('Width')['max']
         cam_temp.Height = cam_temp.get_info('Height')['max']
         cam_temp.OffsetX = cam_temp.get_info('OffsetX')['min']
@@ -210,10 +239,12 @@ def connect():
 
     camb.sort(key=get_length)
     
-    cam_serial = [t[0] for t in camb]
+    cam_serial = [t[0] for t in camb] #array of sorted serial numbers
 
-    update_label=str(str("Number of cameras=")+str(ncam))
+
+    update_label=str(str("Number of cameras=")+str(ncam)) #change display of GUI based on number of cameras
     camera_deets.config(text=update_label)
+    #create arrays for storing camera info as described in global variables at the beginning of this function
     for n in range(ncam):
         cama.append([])
     crops=[[]*4]*ncam   
@@ -225,6 +256,7 @@ def connect():
         gains[i]=[0]
         exposures[i]=[0]
 
+    #assign cameras to array "cama" based on sorted serial numbers and then assign camera defaults as crop, gain and exposure values
     for i in range(ncam):
         cama[i]=Camera(int(i))
         cam=cama[int(i)]
@@ -242,18 +274,20 @@ def connect():
 # Camera Select Function
 
 def select_camera():
+    #this function is responsible for changing the GUi text and text boxes based on camera selection from the drop down
     global cam_idx
     global camera_name
     global cam_serial
     global crops
     global gains
     global exposures
-    selected = choose.get()
+    selected = choose.get() #decide which camera is selected in the dropdown
+    
+
     cropx_entry.delete(0, tk.END)
     cropy_entry.delete(0, tk.END)
     cropwidth_entry.delete(0, tk.END)
     cropheight_entry.delete(0, tk.END)
-    # fps_entry.delete(0, tk.END)
     time_entry.delete(0,tk.END)
     Gain_entry.delete(0,tk.END)
     Gain_entry.insert(0,50)
@@ -336,7 +370,7 @@ def select_camera():
         
 
 def Stream_camera():
-    global flag_stop
+    global flag_stop #controls streaming stop point
     flag_stop = 0
     global cam_idx
     global camera_name
@@ -345,8 +379,9 @@ def Stream_camera():
     global gains
     global exposures
 
-    stream_camerabtn.config(state="disabled")
+    stream_camerabtn.config(state="disabled") #when stream is pressed, the button is then disabled untill stop stream is pressed. This is to avoid double clicking that has in past upset some functions
 
+    #decide which camera to stream
     selected = choose.get()
     if selected == options[0]:
         cam_idx=cam_serial[0]
@@ -355,12 +390,14 @@ def Stream_camera():
     if selected == options[2]:
         cam_idx=cam_serial[2]
     
-    cama[cam_idx]=Camera(int(cam_idx))
+    #select the correct camera from the serial number sorted list and assign it to the variable "cam"
+    cama[cam_idx]=Camera(int(cam_idx)) 
     cam=cama[int(cam_idx)]
     
-    cam.init()
+    cam.init() #initialise camera
     
-    cam.GainAuto = 'Off'
+    #store cameras gain value based on user input
+    cam.GainAuto = 'Off'    
     gain=int(Gain_entry.get())
     gain_min=int(cam.get_info('Gain')['min'])
     gain_max=int(cam.get_info('Gain')['max'])
@@ -369,10 +406,11 @@ def Stream_camera():
     
     
 
-    
+    #open a window to show the stream
     cv2.namedWindow(camera_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(camera_name, 850, 500)
     
+    #check if user input for crop value is non zero. If its zero and outside the permissible range of cameras default range, then by assign minimum/maximum possible value based on which end you are looking at. If not then assign input value.
     if len(cropx_entry.get()) == 0:
             xcrop=cam.get_info('OffsetX')['min']
     else:
@@ -441,6 +479,7 @@ def Stream_camera():
          cam.ExposureTime=1000
 
 
+    #483-488 are for setting frame rates for streaming. Its set at 30 fps for setting parameters. The try and except exist because two diff FLIR models have diff commands
     try:
         cam.AcquisitionFrameRateAuto = 'Off'
         cam.AcquisitionFrameRateEnabled = True
@@ -448,6 +487,7 @@ def Stream_camera():
         cam.AcquisitionFrameRateEnable = True
     cam.AcquisitionFrameRate = 30
 
+    #assign recorded crop and gain values to the camera and start the camera
     cam.Width = crops[cam_idx][1]
     cam.Height = crops[cam_idx][3]
     cam.OffsetX = crops[cam_idx][0]
@@ -455,17 +495,20 @@ def Stream_camera():
     cam.Gain = int(gain)
     cam.start()
 
+    #this will constantly update a text label recording the current size and location of crop for anyone who wants to record it for future
     update_label=str(str("Frame Size and Location:\n X=")+str(xcrop)+str(", Y= ")+str(ycrop)+str("\n Height= ")+str(height)+str(", Width= ")+str(width))
     frame_size.config(text=update_label)
 
+    #record current gain and exposure values
     prev_gain=gain
     prev_exposure=exp
 
+    #this will constantly update a text label to show which camera we are working with
     serial=cam.get_info('DeviceSerialNumber')['value']
     update_label=str(str("Serial Number:\n ")+str(serial))
     camera_serial.config(text=update_label)
 
-
+    #the following while loop is for keeping stream running as you adjust parameters. Every time a parameter is changed, the camera is stopped, values adjusted and camera started again. The camera has to be stopped before values can be assigned. New values are recorded in "prev" labeled variables, and the loop repeats over and over untill the variable "flag_stop" is 1, which then breaks the stream. At each step of assignment, the values are checked for being non-zer0 and within permissible range allowed by the camera. If they arent, default minimum or maximum values will be assigned.
     while True:
         if len(Gain_entry.get())>0:
             gain=int(Gain_entry.get())
@@ -586,24 +629,26 @@ def Stream_camera():
             break
 
     
-    cam.stop()
+    cam.stop() #stop camera
     gain=int(Gain_entry.get())
-    crops[cam_idx]=[xcrop,width,ycrop,height]
-    gains[cam_idx]=[gain]
-    exposures[cam_idx]=[exp]
-    cam.close()
-    del imgs_temp
-    cv2.destroyAllWindows()
-    flag_stop=0
-    stream_camerabtn.config(state="normal")
+    crops[cam_idx]=[xcrop,width,ycrop,height] #store the final crop values
+    gains[cam_idx]=[gain] #store the final gain value
+    exposures[cam_idx]=[exp] #store the final exposure value
+    cam.close() #close the camera
+    del imgs_temp #clear variable
+    cv2.destroyAllWindows() #shut down all windows
+    flag_stop=0 #reset flag_stop for next round
+    stream_camerabtn.config(state="normal") #make stream buttom pressable again
 
+
+#the following function just makes the global variable flag_stop=1 so streaming funcitons can exit
 def Stop_stream_camera():
     global flag_stop
     flag_stop=1
 
 
 
-
+#This function will reset the cameras internal values to default. For some reason I cant figure out this has to be run twice and just wont work with one.
 def reset_camera():
     global ncam 
     global cama
@@ -654,34 +699,37 @@ def reset_camera():
 
 ###################################################################################
 
-
+#this controls stream button in the record tab and is essential to start first before recording can be started.
 def start_stream():
-    global flag_stop
-    global cam1
+    global flag_stop #controls loop end point
+    #cam 1, 2 and 3 are each assigned to a camera
+    global cam1 
     global cam2
     global cam3
-    global ncam
-    global cam
-    global fps
-    global cama
-    global crops
-    global cam_serial
-    global gains
-    global exposures
-    global cam_name1, cam_name2, cam_name3
-    global opdir1, opdir2, opdir3
-    global imgs1,imgs2,imgs3
-    global running_flag1, running_flag2, running_flag3
+    global ncam #number of cameras
+    global cam #temporary camera variable
+    global fps #fps
+    global cama #global array of serial number sorted cameras
+    global crops #crop parameters array
+    global cam_serial #serial numbers of cameras
+    global gains #gain parameters array
+    global exposures #exposure parameters array
+    global cam_name1, cam_name2, cam_name3 #names of three cameras for folder naming purposes
+    global opdir1, opdir2, opdir3 #path to saving folders
+    global imgs1,imgs2,imgs3 #arrays to save incoming images from each camera
+    global running_flag1, running_flag2, running_flag3 #flag to indicate writing is going on
 
     flag_stop=0
     
+    #change button states to allowed recording button to be pressed and disallow user from pressing stream twice
     STREAMbtn.config(state="disabled")
     RECORDbtn.config(state="normal")
 
 
     fps = int(fps_choose.get())
 
-    for n in range(ncam): # Initialize Camera
+    # the followign for loop initializes Cameras and assigns saved parameters. It also starts all the cameras, and opens individual windows to display their output. 
+    for n in range(ncam): 
         
         if n==0:
             n_temp=cam_serial[0]
@@ -819,9 +867,9 @@ def start_stream():
     
     global imgs_con
     global record_flag
-    record_flag=0
+    record_flag=0 #set recording_flag to 0
 
-    while True:
+    while True: #start a loop to keep showing camera feeds, untill record button is pressed. that will change flag_stop to 1 and record_flag to 0. 
         imc1 = cam1.get_array()
         cv2.imshow(cam_name1,imc1)
         if ncam>1:
@@ -834,73 +882,78 @@ def start_stream():
         if flag_stop==1:
             break
 
-    if record_flag==0:
+    if record_flag==0: #if flag_stop==1 but record isnt pressed, revert things to default and wait for start stream to be pressed again
         STREAMbtn.config(state="normal")
         RECORDbtn.config(state="disabled")
 
-    if record_flag==1:
+    if record_flag==1: #if record_flag==1, start recording with this part
+        #each of these three flags are for writer functions for each of the cameras
         running_flag1=0 
         running_flag2=0 
         running_flag3=0
 
-        flag_stop=1
+        flag_stop=1 #stop all streams. (Another one I cant figure out how to keep cameras streaming and not get frame drops)
 
-        create_folder()
+        create_folder() #calls create_folder function to make paths for videos
 
+        #create arrays to store timestamps as images are recorded
         arr1 = [[0]*2]*1
         if ncam>1:
             arr2=[[0]*2]*1
         if ncam>2:
             arr3=[[0]*2]*1
         
-        fps = int(fps_choose.get())
+        fps = int(fps_choose.get()) #set camera fps
         
-        t_total=int(time_entry.get())
+        t_total=int(time_entry.get()) #set total time of recording
 
         imgs1=[]
         imgs2=[]
         imgs3=[]
 
-        record_status.config(bg="black", fg="red",text="Recording")
+        record_status.config(bg="black", fg="red",text="Recording") #change text label to show current status
         
-        
+        #monitor number of frames from each camera
         framecount=0
         framecount2=0
         framecount3=0
         n=0 
 
-        t=1000/fps
+        t=1000/fps #this is essentially milliseconds to wait in between allowing image capture
 
+        #start cameras
         cam1.start()
         if ncam>1:
             cam2.start()
         if ncam>2:
             cam3.start()
 
-
+        #make variables to keep track of time for iterative frame rate adjustment
         prev_time=0
         time_start = time.time()
         
-        if ncam==1:
-            while time.time()<(time_start+t_total) and record_flag==1:
-                interval=1000*(time.time()-prev_time)
-                if interval>t:
-                    prev_time=time.time()
-                    framecount+=1
-                    n+=1
-                    imc1 = cam1.get_array()
-                    newrow = [int(n), math.floor((time.time() - time_start)*1000) ]
-                    arr1 = np.vstack([arr1, newrow])
-                    imgs1.append(imc1)
-                    if (framecount%50)==0:
-                        time_taken=1000*(time.time()-time_start)
-                        t=(t*framecount*1000)/(fps*time_taken)
-                    if ((framecount)%1000)==0:
-                        if running_flag1==0:
+        #annotating for cam1, assume the rest two are identical
+
+        if ncam==1: #decides how many to run at once based on number of connected cameras
+            while time.time()<(time_start+t_total) and record_flag==1: #loop will keep running untill time expires or abort is pressed which would set running_flag to 1
+                interval=1000*(time.time()-prev_time) #milliseconds passed between current time and a recorded prev_time
+                if interval>t: # we only want to capture images the first time time passed (ms) is greater than "t" which is decided from fps in line 922
+                    prev_time=time.time() #change prev_time to now so next loop only happens when t more milliseconds have passed
+                    framecount+=1 #increase frame counter
+                    n+=1 #row_number for timestamps (this increased only once per loop as opposed to per camera to keep all timstamps for same fram number in same row)
+                    imc1 = cam1.get_array() #get image from camera
+                    newrow = [int(n), math.floor((time.time() - time_start)*1000) ] #record timestamp
+                    arr1 = np.vstack([arr1, newrow]) #add timestamp to variable arr1
+                    imgs1.append(imc1) #add acquired image to imgs1 array
+                    if (framecount%50)==0: #this is an iterative loop which runs every 50 frames that makes sure capture doesnt lag or lead
+                        time_taken=1000*(time.time()-time_start) #see how many total milliseconds have passed
+                        t=(t*framecount*1000)/(fps*time_taken) #this ensure that always 50 frames will be captured in the correct amount of time and if not the time to wait between capturing frames will be reduced or increased acoording to current total amount captured
+                    if ((framecount)%1000)==0: #if you have new 1000 frames recorded, remove the first 1000, send it to a temporary array, and sent that array to be written.
+                        if running_flag1==0: #only send to writer if writer is free
                             im_t=imgs1[0:999]
                             cam1thread(im_t)
                             imgs1[0:999]=[]
-                            gc.collect()
+                            gc.collect() #clear memory of those 1000 frames
 
         if ncam==2:
             while time.time()<(time_start+t_total) and record_flag==1:
@@ -985,19 +1038,19 @@ def start_stream():
                             imgs3[0:999]=[]
                             gc.collect()
 
-        
+        #Once recording is done, there is a high chance that video writing is still going on so change status label to saving
         if record_flag==1:
             record_status.config(bg="black", fg="yellow",text="Saving")
 
-            write_video()
+            write_video() #special function to handle writing of remaining frames after recording is done
 
             
             while True:
-                if running_flag1==0 and running_flag2==0 and running_flag3==0:
+                if running_flag1==0 and running_flag2==0 and running_flag3==0: #once all writers stop, then break this loop and move on 
                     break
 
 
-
+            #save all timstamps as csv files in corresponding folders
             csv_timestamp(opdir1,arr1)
             if ncam>1:
                 csv_timestamp(opdir2,arr2)
@@ -1005,14 +1058,14 @@ def start_stream():
                 csv_timestamp(opdir3,arr3)
 
         
-
+        #stop all cameras
         cam1.stop()
         if ncam>1:
             cam2.stop()
         if ncam>2:
             cam3.stop()
 
-       
+       #change recording status to not recording and close all windows
         record_status.config(bg="black", fg="white",text="Not Recording")
         cv2.destroyAllWindows()
         flag_stop=0
@@ -1020,15 +1073,16 @@ def start_stream():
         del imgs1
         del imgs2
         del imgs3
-        gc.collect()
+        gc.collect() #clear all image arrays and free memory
 
-        pause()
-        reset()
+        pause() #pause timer
+        reset() #reset timer
 
+        #reset button statuse to default so user can record another video
         STREAMbtn.config(state="normal")
         RECORDbtn.config(state="disabled")
 
-    if record_flag==0:   
+    if record_flag==0: #this handles closing everything if recording was never initiated but stream was stopped  
         cam1.stop()
         if ncam>1:
             cam2.stop()
@@ -1051,6 +1105,7 @@ def abort_record():
     record_flag=0
 
 ###################################################################################
+#function to make folders required to save videos, called by create_folder function. We want to saved a user named folder in a folder named with camera name (serial number). If user doesnt give an input for the name, or forgets to change it before next reocrding, name the folder using date and time of recording instead.
 def folder_name(camera_folder,desktop,dt_string):
     file_name = "/" + file_name_entry.get()
     if len(file_name_entry.get())>0:
@@ -1076,34 +1131,35 @@ def folder_name(camera_folder,desktop,dt_string):
 
     return output_dir
 
-
+#function to handle all folder naming and creation for all cameras
 def create_folder():
     global ncam, cam1, cam2, cam3
     global opdir1, opdir2, opdir3
 
 
-    now = datetime.now()
-    dt_string = now.strftime("%Y_%m_%d %H_%M")
-    desktop=os.path.join((os.environ['USERPROFILE']),'Desktop/FLIR_Recording')
+    now = datetime.now() #get date and time
+    dt_string = now.strftime("%Y_%m_%d %H_%M") #make a string for YY_MM_DD_HH_MM
+    desktop=os.path.join((os.environ['USERPROFILE']),'Desktop/FLIR_Recording') #get path to desktop
     file_name = "/" + file_name_entry.get()
 
-    serial=cam1.get_info('DeviceSerialNumber')['value']
+    serial=cam1.get_info('DeviceSerialNumber')['value'] #camera folder will be named using serial number
     camera_folder='/'+'Camera '+str(serial)+'/'
 
-    opdir1=folder_name(camera_folder,desktop,dt_string)
+    opdir1=folder_name(camera_folder,desktop,dt_string) #make the folder path for first cam
 
     if ncam>1:
         serial=cam2.get_info('DeviceSerialNumber')['value']
         camera_folder='/'+'Camera '+str(serial)+'/'
 
-        opdir2=folder_name(camera_folder,desktop,dt_string)
+        opdir2=folder_name(camera_folder,desktop,dt_string)  #make the folder path for second cam
 
     if ncam>2:
         serial=cam3.get_info('DeviceSerialNumber')['value']
         camera_folder='/'+'Camera '+str(serial)+'/'
 
-        opdir3=folder_name(camera_folder,desktop,dt_string)
+        opdir3=folder_name(camera_folder,desktop,dt_string)  #make the folder path for third cam
 
+#create and save a csv file of timestamp data. 
 def csv_timestamp(output_dir,arr):
     file = '/' + 'timestamp' + '.csv'
     csv_file = output_dir + file
@@ -1116,6 +1172,7 @@ def csv_timestamp(output_dir,arr):
 
     timestamp.close()
 
+#called by write_video function to handle writing of leftover frames from cam 1
 def write_video1():
     global imgs1
 
@@ -1135,6 +1192,7 @@ def write_video1():
     if frames_left>10:
         cam1thread(imgs1)
 
+#called by write_video function to handle writing of leftover frames from cam 2
 def write_video2():
     global imgs2
 
@@ -1154,7 +1212,7 @@ def write_video2():
     if frames_left>10:
         cam2thread(imgs2)
 
-
+#called by write_video function to handle writing of leftover frames from cam 3
 def write_video3():
     global imgs3
 
@@ -1174,6 +1232,7 @@ def write_video3():
     if frames_left>10:
         cam3thread(imgs3)
 
+#when record button is pressed, this will kick the streaming loop into recording mode
 def record_sync():
     global flag_stop
     global record_flag
@@ -1185,7 +1244,7 @@ def record_sync():
 global running
 running = False
 
-
+#time dollowing are functions for timer
 def start():
     global running
     global time_start_timer
@@ -1230,6 +1289,8 @@ def update():
 
 
 ###################################################################################
+#MAKE the GUI and add button controls
+
 
 win = tk.Tk()
 choose = tk.StringVar()
