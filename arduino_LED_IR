@@ -1,0 +1,75 @@
+#include <Servo.h> // servo library
+
+// I/O params
+// NEVER USE pins 0 and 1 for general I/O. That would interfere with serial communication!
+const int led_pin = 6;
+const unsigned long led_pulse_len_micros = 50000; // Duration clock LED is on
+const unsigned long led_pulse_interval_micros = 20000000; // Clock rate in microseconds
+
+// Variables
+unsigned long time_start = 0;
+unsigned long time_curr = 0;
+unsigned long time_prev = 0;
+unsigned long time_led_on = 0;
+int led_prev = LOW;
+int led_curr = LOW;
+bool waiting_for_start = false; // 0 = waiting for first clk, 1 = running
+Servo servo;
+
+byte serial_msg = 0;
+// bit 0: clk rising edge occurred
+// bit 1: 1 = clk rising edge is first since reset
+// bit 2: 1 = moved servo in
+// bit 3: 1 = moved servo out
+
+void setup() {
+  time_start = micros();
+  Serial.begin(115200);
+  
+  // Init outputs
+  pinMode(led_pin, OUTPUT);
+  digitalWrite(led_pin, LOW);
+}
+
+void loop() {
+  // in each loop, check to see if interval has been exceeded. if yes: report, and flash LED for led_pulse_len_micros
+  // only report serial output if clk or servo event happened
+  
+  time_curr = micros();  
+  serial_msg = 0;
+
+  if (Serial.available()) {
+    if (Serial.readString() == "r") {
+      waiting_for_start = true;
+    }
+  }
+
+  if (time_led_on != 0 && ((time_curr - time_led_on) >= led_pulse_len_micros)) {
+    digitalWrite(led_pin, LOW);
+    time_led_on = 0;
+  }
+  
+  // if clk had a transition from low to high, we record the timestamp and toggle the LED on
+  if ((time_curr - time_prev) >= led_pulse_interval_micros) {
+    serial_msg = serial_msg | 1; // set bit 0 to report that a rising clk edge occurred
+    if (true == waiting_for_start) {
+      waiting_for_start = false;
+      time_start = micros();
+      serial_msg = serial_msg | 1 << 1; // set bit 1 to report that we got the first clk edge after reset
+      
+    }
+    digitalWrite(led_pin, HIGH);
+    time_prev = time_curr;
+    time_led_on = micros();
+  }
+
+  if (0 != serial_msg) {
+    Serial.print(time_curr - time_start);
+    Serial.print('\t');
+    Serial.print(serial_msg, BIN);
+    Serial.print('\n');
+  }
+    
+  led_prev = led_curr;
+
+}
