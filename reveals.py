@@ -1,21 +1,31 @@
-#tkinter importing for GUI build
+
+#from custom camera class import the cam module
+from camera_class import cam
+
+#import all requirements for GUI building
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
+from ttkthemes import ThemedTk
+import sv_ttk
+from tkinter import messagebox
 
 #threading for concurrent processes
 import threading
 from threading import Thread
 
-#import camera module
-from simple_pyspin import Camera,list_cameras
-from PIL import Image
+#multiprocessing for recording
+from multiprocessing import Pool,Process
+
+#import image module
+from PIL import Image,ImageTk
 
 #import opencv for video handling and writing
 import cv2
 
 #import other system requirements
 import os
+import re
 import sys
 import pandas as pd
 from os import listdir
@@ -25,1429 +35,790 @@ import math
 import time
 import csv
 from datetime import datetime
-from tkinter import messagebox
-import gc
-###################################################################################
-# Threads
-
-
-#thread for starting and stopping camera streams in record tab
-def threading():
-    t=Thread(target=stop_stream)
-    t.start()
-
-def threading1():
-    t1=Thread(target=start_stream)
-    t1.start()
-
-
-#thread for starting and stopping camera streams in setup tab
-def crop_thread():
-    t4=Thread(target=Stream_camera)
-    t4.start()
-
-def StopCam2():
-    t2=Thread(target=Stop_stream_camera)
-    t2.start()
-
-
-#thread for starting recording of videos
-def record_start():
-    t3=Thread(target=record_sync)
-    t3.start()
-
-
-#threse three threads individually control writing for each of the three cameras. They are responsible for creating the videos
-def cam1thread(im_ar):
-    t5=Thread(target=Cam1write,args=(im_ar,))
-    t5.start()
-
-def cam2thread(im_ar):
-    t6=Thread(target=Cam2write,args=(im_ar,))
-    t6.start()
-
-def cam3thread(im_ar):
-    t7=Thread(target=Cam3write,args=(im_ar,))
-    t7.start()
-
-
-# this thread decides handles writing of leftover frames after recording is done
-def write_video():
-    global ncam
-    t8=Thread(target=write_video1)
-    t8.start()
-    if ncam>1:
-        t9=Thread(target=write_video2)
-        t9.start()
-    if ncam>2:
-        t10=Thread(target=write_video3)
-        t10.start()
-
-
-#this thread controls abortion of recording
-def abort_thread():
-    t4=Thread(target=abort_record)
-    t4.start()
-
-###################################################################################
-#the following three functions control writing each of the videos (1000 feames each) for each of the three cameras. These functions only control writing and not when to write. Each of them produces a flag when activated that is monitored by the main thread to decide when to start writing the next video without overloading the processor. 
-def Cam1write(im_ar):
-    global opdir1 #directory for saving video
-    global running_flag1 #flag to indicate writing is going on
-    running_flag1=1
-    output_dir=opdir1
-    #get number of frames
-    n=int(len(im_ar))
-    #get dimensions of each frame
-    height,width=im_ar[0].shape
-    size = (width,height)
-    count=1 
-
-    #name the video "behavcam_[number]"
-    item=str('behavcam_')+str(count-1)+str('.avi')
-
-    #this loop is reponsible for finding out the last written behavcam_[number] and making the current one a number higher than that
-    if os.path.exists(os.path.join(output_dir, item)):
-        flag_name_check=0
-        while flag_name_check==0:
-            count=count+1
-            item=str('behavcam_')+str(count-1)+str('.avi')
-            if not os.path.exists(os.path.join(output_dir, item)):
-                flag_name_check=1
-
-
-    item=str('behavcam_')+str(count-1)+str('.avi') 
-    count=count+1
-    
-    #write the video
-    out = cv2.VideoWriter(os.path.join(output_dir, item), cv2.VideoWriter_fourcc(*'MJPG'), 30, size, False)
-
-    for i in range(n):
-        out.write(im_ar[i])
-    out.release()
-    running_flag1=0 #turn the flag off to indicate that this process is free and can be used again
-
-
-def Cam2write(im_ar):
-    global opdir2
-    global running_flag2
-    running_flag2=1
-    output_dir=opdir2
-    n=int(len(im_ar))
-    height,width=im_ar[0].shape
-    size = (width,height)
-    count=1 
-
-    item=str('behavcam_')+str(count-1)+str('.avi')
-
-
-    if os.path.exists(os.path.join(output_dir, item)):
-        flag_name_check=0
-        while flag_name_check==0:
-            count=count+1
-            item=str('behavcam_')+str(count-1)+str('.avi')
-            if not os.path.exists(os.path.join(output_dir, item)):
-                flag_name_check=1
-
-
-    item=str('behavcam_')+str(count-1)+str('.avi') 
-    count=count+1
-    
-    out = cv2.VideoWriter(os.path.join(output_dir, item), cv2.VideoWriter_fourcc(*'MJPG'), 30, size, False)
-
-    for i in range(n):
-        out.write(im_ar[i])
-    out.release()
-    running_flag2=0
-
-def Cam3write(im_ar):
-    global opdir3
-    global running_flag3
-    running_flag3=1
-    output_dir=opdir3
-    n=int(len(im_ar))
-    height,width=im_ar[0].shape
-    size = (width,height)
-    count=1 
-
-    item=str('behavcam_')+str(count-1)+str('.avi')
-
-
-    if os.path.exists(os.path.join(output_dir, item)):
-        flag_name_check=0
-        while flag_name_check==0:
-            count=count+1
-            item=str('behavcam_')+str(count-1)+str('.avi')
-            if not os.path.exists(os.path.join(output_dir, item)):
-                flag_name_check=1
-
-
-    item=str('behavcam_')+str(count-1)+str('.avi') 
-    count=count+1
-    
-    out = cv2.VideoWriter(os.path.join(output_dir, item), cv2.VideoWriter_fourcc(*'MJPG'), 30, size, False)
-
-    for i in range(n):
-        out.write(im_ar[i])
-    out.release()
-    running_flag3=0
-
+import logging
 ###################################################################################
 
-# Camera Select Options
-#this will make the dropdown choices for camera selection in setup tab
-options = [
-    "Camera 1",
-    "Camera 2",
-    "Camera 3"
-]
-#this will make the dropdown choices for fps selection in record tab
-fps_options = [15,30,45,60]
+########SETUP TAB FUNCTIONS########
+
+
+global camObj #global object to handle all connected cameras
+global cam_flags #global object to record state of cameras
+
+#Initiliaze the global camObj
+camObj = cam();
+camObj.initialize()
+
+#set all default values for flags and options to fill in camera drop down menu
+cam_flags=1 
+options=[]
+options.append('Camera 1')
+
+if camObj.ncams>0:
+	options=[]
+
+for i in range (int(camObj.ncams)):
+	string_temp="Camera " + str(i+1)
+	options.append(string_temp)
+	
+
+def camera_find(): #This function triggers on pressing connect button. It handles changing entries in GUI as well as assigning states to other buttons.
+	global camObj
+	camera_number_label.configure(text=f'Number of cameras={int(camObj.ncams)}') #update camera label
+
+	delete_entries() #clear all GUi entries for camera parameter values
+	cidx=0
+	#set all camera parameter values in teh GUI to values of camera 1 to correspond to the initial dropdown
+	XCrop_entry.insert(0,str(camObj.get_OffsetX(cidx)))
+	YCrop_entry.insert(0,str(camObj.get_OffsetY(cidx)))
+	HeightCrop_entry.insert(0,str(camObj.get_Height(cidx)))
+	WidthCrop_entry.insert(0,str(camObj.get_Width(cidx)))
+	Gain_entry.insert(0,str(camObj.get_Gain(cidx)))
+	Exposure_entry.insert(0,str(camObj.get_Exposure(cidx)))
+	CurrentCrop_label2.configure(text=f'X={camObj.get_OffsetX(cidx)},Y={camObj.get_OffsetY(cidx)}\nHeight={camObj.get_Height(cidx)},Width={camObj.get_Width(cidx)}')
+
+	RESETbtn.configure(state='normal') #allow reset button to be used
+	setupSTREAMbtn.configure(state='normal') #allow stream button to be used on setup tab
 
 
 
-def get_length(val):
-  return val[1]
 
-#this function has multiple purposes. First is to detect how many FLIR cameras are connected. Second is to arrange them in serial number order. Third is to reset their crop, gain and exposure values since FLIR cameras tend to remember the last used values.
-def connect():
-    #the following global variables are common to most functions
-    global ncam #stores number of cameras
-    global cama #stores a list of serial number sorted cameras
-    global crops #stores cropping values for each cmaera
-    global gains #stores gain values for each camera
-    global exposures #stores exposure values for each camera
-    global cam_serial #stores sorted serial numbers for each camera
+def delete_entries():  #clear all GUi entries for camera parameter values
+	XCrop_entry.delete(0,tk.END)
+	YCrop_entry.delete(0,tk.END)
+	HeightCrop_entry.delete(0,tk.END)
+	WidthCrop_entry.delete(0,tk.END)
+	Gain_entry.delete(0,tk.END)
+	Exposure_entry.delete(0,tk.END)
+	
 
-    cama=[]
-    
-    ncam=len(list_cameras())
-    camb=[[]*2]*ncam #temporary array for sorting
+def update_crop_entries(event): #change all GUI entries for camera parameter values on selecting a different camera from drop down
+	global camObj
+	selected = choose_camera.get() #determine which camera is selected in the dropdown
 
-    for i in range(ncam):
-        cam_temp=Camera(i)
-        cam_temp.init()
-        serial=cam_temp.get_info('DeviceSerialNumber')['value']
-        camb[i]=[i,int(serial)] #store camera serial number and associated camera number as read in by the device
+	cidx=selected.replace('Camera ','')
+	cidx=int(cidx)-1
+	
+	delete_entries() #clear all entries
 
-        #reset camera properties
-        cam_temp.Width = cam_temp.get_info('Width')['max']
-        cam_temp.Height = cam_temp.get_info('Height')['max']
-        cam_temp.OffsetX = cam_temp.get_info('OffsetX')['min']
-        cam_temp.OffsetY = cam_temp.get_info('OffsetY')['min']
-        cam_temp.close()
+	XCrop_entry.insert(0,str(camObj.get_OffsetX(cidx)))
+	YCrop_entry.insert(0,str(camObj.get_OffsetY(cidx)))
+	HeightCrop_entry.insert(0,str(camObj.get_Height(cidx)))
+	WidthCrop_entry.insert(0,str(camObj.get_Width(cidx)))
+	Gain_entry.insert(0,str(camObj.get_Gain(cidx)))
+	Exposure_entry.insert(0,str(camObj.get_Exposure(cidx)))
 
-    camb.sort(key=get_length)
-    
-    cam_serial = [t[0] for t in camb] #array of sorted serial numbers
+	CurrentCrop_label2.configure(text=f'X={camObj.get_OffsetX(cidx)},Y={camObj.get_OffsetY(cidx)}\nHeight={camObj.get_Height(cidx)},Width={camObj.get_Width(cidx)}') #configure the current crop label to reflect new values
 
 
-    update_label=str(str("Number of cameras=")+str(ncam)) #change display of GUI based on number of cameras
-    camera_deets.config(text=update_label)
-    #create arrays for storing camera info as described in global variables at the beginning of this function
-    for n in range(ncam):
-        cama.append([])
-    crops=[[]*4]*ncam   
-    gains=[[]*1]*ncam
-    exposures=[[]*1]*ncam
+def cameras_reset():
+	global camObj
+	
+	camObj.close()
 
-    for i in range(ncam):
-        crops[i]=[0,0,0,0]
-        gains[i]=[0]
-        exposures[i]=[0]
+	camObj=cam()
+	camObj.initialize()
+	messagebox.showinfo('Notice','Cameras have been reset')
 
-    #assign cameras to array "cama" based on sorted serial numbers and then assign camera defaults as crop, gain and exposure values
-    for i in range(ncam):
-        cama[i]=Camera(int(i))
-        cam=cama[int(i)]
-        cam.init()
-        width = cam.get_info('Width')['max']
-        height = cam.get_info('Height')['max']
-        xcrop = cam.get_info('OffsetX')['min']
-        ycrop = cam.get_info('OffsetY')['min']
-        crops[i]=[xcrop,width,ycrop,height]
-        gains[i]=[50]
-        exposures[i]=[1000]
-        cam.close()
+def check_changes(cidx): #This function checks if any of the camera parameter GUI entry values have changed and then assigns them accordingly to the camera
+	global camObj
 
+	crop_current=[int(camObj.get_OffsetX(cidx)),int(camObj.get_Width(cidx)),int(camObj.get_OffsetY(cidx)),int(camObj.get_Height(cidx))] #get the cameras current set values
 
-# Camera Select Function
+	#get the new values from GUI
+	x_new=int(XCrop_entry.get())
+	y_new=int(YCrop_entry.get())
+	width_new=int(WidthCrop_entry.get())
+	height_new=int(HeightCrop_entry.get())
 
-def select_camera():
-    #this function is responsible for changing the GUi text and text boxes based on camera selection from the drop down
-    global cam_idx
-    global camera_name
-    global cam_serial
-    global crops
-    global gains
-    global exposures
-    selected = choose.get() #decide which camera is selected in the dropdown
-    
+	#check if new values are valid and different from current set values and then assigns them to the camera
 
-    cropx_entry.delete(0, tk.END)
-    cropy_entry.delete(0, tk.END)
-    cropwidth_entry.delete(0, tk.END)
-    cropheight_entry.delete(0, tk.END)
-    time_entry.delete(0,tk.END)
-    Gain_entry.delete(0,tk.END)
-    Gain_entry.insert(0,50)
-    Exposure_entry.delete(0,tk.END)
-    Exposure_entry.insert(0,1000)
-    if selected == options[0]:
-        cam_idx=cam_serial[0]
-        [xcrop,width,ycrop,height]=crops[cam_idx]
-        [gain]=gains[cam_idx]
-        [exp]=exposures[cam_idx]
-        cam_temp=Camera(int(cam_idx))
-        cam_temp.init()
-        serial=cam_temp.get_info('DeviceSerialNumber')['value']
-        update_label=str(str("Serial Number:\n ")+str(serial))
-        camera_serial.config(text=update_label)
-        camera_name='Camera '+ str(serial)
-        cropx_entry.delete(0, tk.END)
-        cropy_entry.delete(0, tk.END)
-        cropwidth_entry.delete(0, tk.END)
-        cropheight_entry.delete(0, tk.END)
-        cropx_entry.insert(0,xcrop)
-        cropy_entry.insert(0,ycrop)
-        cropwidth_entry.insert(0,width)
-        cropheight_entry.insert(0,height)
-        Gain_entry.delete(0,tk.END)
-        Gain_entry.insert(0,gain)
-        Exposure_entry.delete(0,tk.END)
-        Exposure_entry.insert(0,exp)         
-        cam_temp.close()
-        
-    if selected == options[1]:
-        cam_idx=cam_serial[1]
-        [xcrop,width,ycrop,height]=crops[cam_idx]
-        [gain]=gains[cam_idx]
-        [exp]=exposures[cam_idx]
-        cam_temp=Camera(int(cam_idx))
-        cam_temp.init()
-        serial=cam_temp.get_info('DeviceSerialNumber')['value']
-        update_label=str(str("Serial Number:\n ")+str(serial))
-        camera_serial.config(text=update_label)
-        camera_name='Camera '+ str(serial)
-        cropx_entry.delete(0, tk.END)
-        cropy_entry.delete(0, tk.END)
-        cropwidth_entry.delete(0, tk.END)
-        cropheight_entry.delete(0, tk.END)
-        cropx_entry.insert(0,xcrop)
-        cropy_entry.insert(0,ycrop)
-        cropwidth_entry.insert(0,width)
-        cropheight_entry.insert(0,height)
-        Gain_entry.delete(0,tk.END)
-        Gain_entry.insert(0,gain)
-        Exposure_entry.delete(0,tk.END)
-        Exposure_entry.insert(0,exp)  
-        cam_temp.close()
+	#the crop vector sent to the camera class function is in the form [x-offset, width, y-offset, height]
 
-    if selected == options[2]:
-        cam_idx=cam_serial[2]
-        [xcrop,width,ycrop,height]=crops[cam_idx]
-        [gain]=gains[cam_idx]
-        [exp]=exposures[cam_idx]
-        cam_temp=Camera(int(cam_idx))
-        cam_temp.init()
-        serial=cam_temp.get_info('DeviceSerialNumber')['value']
-        update_label=str(str("Serial Number:\n ")+str(serial))
-        camera_serial.config(text=update_label)
-        camera_name='Camera '+ str(serial)
-        cropx_entry.delete(0, tk.END)
-        cropy_entry.delete(0, tk.END)
-        cropwidth_entry.delete(0, tk.END)
-        cropheight_entry.delete(0, tk.END)
-        cropx_entry.insert(0,xcrop)
-        cropy_entry.insert(0,ycrop)
-        cropwidth_entry.insert(0,width)
-        cropheight_entry.insert(0,height)
-        Gain_entry.delete(0,tk.END)
-        Gain_entry.insert(0,gain)
-        Exposure_entry.delete(0,tk.END)
-        Exposure_entry.insert(0,exp)  
-        cam_temp.close()
-        
+	if x_new>=0 and x_new != crop_current[0]:
+		crop_current[0]=x_new
+		camObj.setFrameSize(cidx,crop_current)
+	if y_new>=0 and y_new != crop_current[2]:
+		crop_current[2]=y_new
+		camObj.setFrameSize(cidx,crop_current)
+	if width_new>=0 and width_new != crop_current[1]:
+		crop_current[1]=width_new
+		camObj.setFrameSize(cidx,crop_current)
+	if height_new>=0 and height_new != crop_current[3]:
+		crop_current[3]=height_new
+		camObj.setFrameSize(cidx,crop_current)
 
-def Stream_camera():
-    global flag_stop #controls streaming stop point
-    flag_stop = 0
-    global cam_idx
-    global camera_name
-    global cama
-    global crops
-    global gains
-    global exposures
+	CurrentCrop_label2.configure(text=f'X={crop_current[0]},Y={crop_current[2]}\nHeight={crop_current[3]},Width={crop_current[1]}')
 
-    stream_camerabtn.config(state="disabled") #when stream is pressed, the button is then disabled untill stop stream is pressed. This is to avoid double clicking that has in past upset some functions
+	gain_current=int(camObj.get_Gain(cidx))
+	exp_current=int(camObj.get_Exposure(cidx))
 
-    #decide which camera to stream
-    selected = choose.get()
-    if selected == options[0]:
-        cam_idx=cam_serial[0]
-    if selected == options[1]:
-        cam_idx=cam_serial[1]
-    if selected == options[2]:
-        cam_idx=cam_serial[2]
-    
-    #select the correct camera from the serial number sorted list and assign it to the variable "cam"
-    cama[cam_idx]=Camera(int(cam_idx)) 
-    cam=cama[int(cam_idx)]
-    
-    cam.init() #initialise camera
-    
-    #store cameras gain value based on user input
-    cam.GainAuto = 'Off'    
-    gain=int(Gain_entry.get())
-    gain_min=int(cam.get_info('Gain')['min'])
-    gain_max=int(cam.get_info('Gain')['max'])
-    gain=gain*(gain_max-gain_min)/100
-    gain=gain_min+gain
-    
-    
-
-    #open a window to show the stream
-    cv2.namedWindow(camera_name, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(camera_name, 850, 500)
-    
-    #check if user input for crop value is non zero. If its zero and outside the permissible range of cameras default range, then by assign minimum/maximum possible value based on which end you are looking at. If not then assign input value.
-    if len(cropx_entry.get()) == 0:
-            xcrop=cam.get_info('OffsetX')['min']
-    else:
-        xcrop=int(cropx_entry.get())
-        temp=xcrop/4
-        temp=math.floor(temp)
-        xcrop=temp*4
-
-    if xcrop<cam.get_info('OffsetX')['min']:
-        xcrop=cam.get_info('OffsetX')['min']
-    if xcrop>cam.get_info('OffsetX')['max']:
-        xcrop=cam.get_info('OffsetX')['max']
-
-    if len(cropy_entry.get()) == 0:
-        ycrop=cam.get_info('OffsetY')['min']
-    else:
-        ycrop=int(cropy_entry.get())
-        temp=ycrop/4
-        temp=math.floor(temp)
-        ycrop=temp*4
-
-    if ycrop<cam.get_info('OffsetY')['min']:
-        ycrop=cam.get_info('OffsetY')['min']
-    if ycrop>cam.get_info('OffsetY')['max']:
-        ycrop=cam.get_info('OffsetY')['max']
+	gain_new=float(Gain_entry.get())
+	exp_new=float(Exposure_entry.get())
 
 
-    if len(cropwidth_entry.get()) == 0:
-        width=cam.get_info('Width')['max']
-    else:
-        width=int(cropwidth_entry.get())
-        temp=width/32
-        temp=math.floor(temp)
-        width=temp*32
+	if gain_new>=0 and gain_new != gain_current:
+		camObj.setGain(cidx,gain_new)
 
-    if width<cam.get_info('Width')['min']:
-        width=cam.get_info('Width')['min']
-    if width>cam.get_info('Width')['max']:
-        width=cam.get_info('Width')['max']
+	if exp_new>=0 and exp_new != exp_current:
+		camObj.setExp(cidx,exp_new)
+	
 
-    if len(cropheight_entry.get()) == 0:
-        height=cam.get_info('Height')['max']
-    else:
-        height=int(cropheight_entry.get())
-        temp=height/4
-        temp=math.floor(temp)
-        height=temp*4
-    
-    if height<cam.get_info('Height')['min']:
-        height=cam.get_info('Height')['min']
-    if height>cam.get_info('Height')['max']:
-        height=cam.get_info('Height')['max']
-    
-    crops[cam_idx]=[xcrop,width,ycrop,height]
-    
-    cam.ExposureAuto = 'Off'
-    if len(Exposure_entry.get())>0:
-        exp=int(Exposure_entry.get())
-        if exp>cam.get_info('ExposureTime')['max']:
-            exp=cam.get_info('ExposureTime')['max']
-        elif exp<cam.get_info('ExposureTime')['min']:
-            exp=cam.get_info('ExposureTime')['min']
-        else:
-            cam.ExposureTime = exp
-    else: 
-         cam.ExposureTime=1000
+def setup_stream(cidx): #this function starts a stream in a new window for the selected camera from the drop down menu when pressed. cidx points to the camera being streamed
+	global camObj
+	global cam_flags
+	
+	cam_name='Camera '+str(cidx) #Assign camera name (based on camera index)
+
+	check_current=[int(XCrop_entry.get()),int(WidthCrop_entry.get()),int(YCrop_entry.get()),int(HeightCrop_entry.get()),int(Gain_entry.get()),int(Exposure_entry.get())] #check current entries in GUI camera parameters
+
+	if any(x<0 for x in check_current):
+		messagebox.showerror('Error','One of the parameters entered is invalid\nPlease correct and try again')
+		return
+
+	check_fields=[len(XCrop_entry.get()),len(WidthCrop_entry.get()),len(YCrop_entry.get()),len(HeightCrop_entry.get()),len(Gain_entry.get()),len(Exposure_entry.get())] #check lengths of all entries in GUI camera parameters
 
 
-    #483-488 are for setting frame rates for streaming. Its set at 30 fps for setting parameters. The try and except exist because two diff FLIR models have diff commands
-    try:
-        cam.AcquisitionFrameRateAuto = 'Off'
-        cam.AcquisitionFrameRateEnabled = True
-    except:
-        cam.AcquisitionFrameRateEnable = True
-    cam.AcquisitionFrameRate = 30
+	if any(x<=0 for x in check_fields):
+		messagebox.showerror('Error','One of the parameters entered is invalid\nPlease correct and try again')
+		return
 
-    #assign recorded crop and gain values to the camera and start the camera
-    cam.Width = crops[cam_idx][1]
-    cam.Height = crops[cam_idx][3]
-    cam.OffsetX = crops[cam_idx][0]
-    cam.OffsetY = crops[cam_idx][2]
-    cam.Gain = int(gain)
-    cam.start()
+	check_changes(cidx) #evaluate changes and assign if needed
 
-    #this will constantly update a text label recording the current size and location of crop for anyone who wants to record it for future
-    update_label=str(str("Frame Size and Location:\n X=")+str(xcrop)+str(", Y= ")+str(ycrop)+str("\n Height= ")+str(height)+str(", Width= ")+str(width))
-    frame_size.config(text=update_label)
-
-    #record current gain and exposure values
-    prev_gain=gain
-    prev_exposure=exp
-
-    #this will constantly update a text label to show which camera we are working with
-    serial=cam.get_info('DeviceSerialNumber')['value']
-    update_label=str(str("Serial Number:\n ")+str(serial))
-    camera_serial.config(text=update_label)
-
-    #the following while loop is for keeping stream running as you adjust parameters. Every time a parameter is changed, the camera is stopped, values adjusted and camera started again. The camera has to be stopped before values can be assigned. New values are recorded in "prev" labeled variables, and the loop repeats over and over untill the variable "flag_stop" is 1, which then breaks the stream. At each step of assignment, the values are checked for being non-zer0 and within permissible range allowed by the camera. If they arent, default minimum or maximum values will be assigned.
-    while True:
-        if len(Gain_entry.get())>0:
-            gain=int(Gain_entry.get())
-            gain=gain*(gain_max-gain_min)/100
-            gain=gain_min+gain
-
-        if gain!=prev_gain:
-            prev_gain=gain
-            cam.stop()
-            cam.Gain=int(gain)
-            cam.start()
-
-        
-        if len(Exposure_entry.get())>0:
-            exp=int(Exposure_entry.get())
-            
-            
-        if exp!=prev_exposure and len(Exposure_entry.get())>0:
-            if exp>cam.get_info('ExposureTime')['max']:
-                exp=1000
-            if exp<cam.get_info('ExposureTime')['min']:
-                exp=100
-            prev_exposure=exp
-            cam.stop()
-            cam.ExposureTime=int(exp)
-            cam.start()
-       
+	camObj.start(cidx) #start camera
 
 
-        if len(cropx_entry.get()) > 0:
-            new_x_crop=int(cropx_entry.get())
-            temp=new_x_crop/4
-            temp=math.floor(temp)
-            new_x_crop=temp*4
+	#open a new window for displaying the input from current camera
+	cv2.namedWindow(cam_name, cv2.WINDOW_NORMAL)
+	cv2.resizeWindow(cam_name, 510, 300)
 
-        if new_x_crop!=xcrop and len(cropx_entry.get()) > 0:
-            xcrop=new_x_crop
-            if xcrop<cam.get_info('OffsetX')['min']:
-                xcrop=cam.get_info('OffsetX')['min']
-            if xcrop>cam.get_info('OffsetX')['max']:
-                xcrop=cam.get_info('OffsetX')['max']
-
-            cam.stop()
-            cam.OffsetX=xcrop
-            if (xcrop+width)>cam.get_info('Width')['max']:
-                diff=(xcrop+width)-cam.get_info('Width')['max']
-                width_adj=width-diff
-                temp=width_adj/32
-                temp=math.floor(temp)
-                width_adj=temp*32
-                cam.Width=width_adj
-
-            cam.start()
-
-        if len(cropy_entry.get()) > 0:
-            new_y_crop=int(cropy_entry.get())
-            temp=new_y_crop/4
-            temp=math.floor(temp)
-            new_y_crop=temp*4
-
-        if new_y_crop!=ycrop and len(cropy_entry.get()) > 0:
-            ycrop=new_y_crop
-            if ycrop<cam.get_info('OffsetY')['min']:
-                ycrop=cam.get_info('OffsetY')['min']
-            if ycrop>cam.get_info('OffsetY')['max']:
-                ycrop=cam.get_info('OffsetY')['max']
-            cam.stop()
-            cam.OffsetY=ycrop
-            if (ycrop+height)>cam.get_info('Height')['max']:
-                diff=(ycrop+height)-cam.get_info('Height')['max']
-                height_adj=height-diff
-                temp=height_adj/2
-                temp=math.floor(temp)
-                height_adj=temp*2
-                cam.Height=height_adj
+	#start a loop that keeps the camera streaming until forcefully stopped using stop stream or closing the window, or until 5 min pass
+	t_start=time.time()
+	while time.time()<(t_start+300):
+		imc1 = camObj.getFrame(cidx) #get frame from camera
+		cv2.imshow(cam_name,imc1) #show frame in the new window
+		cv2.waitKey(1)
 
 
-            cam.start()
+		#if any changes are made to the GUI camera parameters entries, stop the camera, assign changes, start the camera again
 
+		crop_current=[int(camObj.get_OffsetX(cidx)),int(camObj.get_Width(cidx)),int(camObj.get_OffsetY(cidx)),int(camObj.get_Height(cidx)),int(camObj.get_Gain(cidx)),int(camObj.get_Exposure(cidx))]
+		check_current=[float(XCrop_entry.get()),float(WidthCrop_entry.get()),float(YCrop_entry.get()),float(HeightCrop_entry.get()),float(Gain_entry.get()),float(Exposure_entry.get())]
 
-        if len(cropwidth_entry.get()) > 0:
-            new_width=int(cropwidth_entry.get())
-            temp=new_width/32
-            temp=math.floor(temp)
-            new_width=temp*32
+		if crop_current != check_current:
+			camObj.stop(cidx)
+			check_changes(cidx)
+			camObj.start(cidx)
 
-        if new_width!=width and len(cropwidth_entry.get()) > 0:
-            width=new_width
-            if width<cam.get_info('Width')['min']:
-                width=cam.get_info('Width')['min']
-            if width>cam.get_info('Width')['max']:
-                width=cam.get_info('Width')['max']
-            cam.stop()
-            cam.Width=width
-            cam.start()
+		if cv2.getWindowProperty(cam_name,cv2.WND_PROP_VISIBLE) <1: #check that window hasnt been closed
+			break
+		if cam_flags==0: #check that stop stream hasnt been pressed
+			break
 
-        if len(cropheight_entry.get()) > 0:
-            new_height=int(cropheight_entry.get())
-            temp=new_height/4
-            temp=math.floor(temp)
-            new_height=temp*4
+	setupSTREAMbtn.configure(state='normal') #make the stream button usable again
 
-        if new_height!=height and len(cropheight_entry.get()) > 0:
-            height=new_height
-            if height<cam.get_info('Height')['min']:
-                height=cam.get_info('Height')['min']
-            if height>cam.get_info('Height')['max']:
-                height=cam.get_info('Height')['max']
-            cam.stop()
-            cam.Height=height
-            cam.start()
+	try:
+		cv2.destroyAllWindows() #close the camera stream windows if open
+	except:
+		pass
 
+	camObj.stop(cidx) #stop camera recording
+	
 
-        imgs_temp = cam.get_array()
-        cv2.imshow(camera_name,imgs_temp)
-        cv2.waitKey(5)
-        if flag_stop==1:
-            break
-
-    
-    cam.stop() #stop camera
-    gain=int(Gain_entry.get())
-    crops[cam_idx]=[xcrop,width,ycrop,height] #store the final crop values
-    gains[cam_idx]=[gain] #store the final gain value
-    exposures[cam_idx]=[exp] #store the final exposure value
-    cam.close() #close the camera
-    del imgs_temp #clear variable
-    cv2.destroyAllWindows() #shut down all windows
-    flag_stop=0 #reset flag_stop for next round
-    stream_camerabtn.config(state="normal") #make stream buttom pressable again
-
-
-#the following function just makes the global variable flag_stop=1 so streaming funcitons can exit
-def Stop_stream_camera():
-    global flag_stop
-    flag_stop=1
+def stop_setup_stream(): #this function stops the current streaming camera on the setup tab
+	global cam_flags
+	if cam_flags==0:
+		messagebox.showerror('Error','Stream is not active')
+	cam_flags=0
 
 
 
-#This function will reset the cameras internal values to default. For some reason I cant figure out this has to be run twice and just wont work with one.
-def reset_camera():
-    global ncam 
-    global cama
-    global crops
-    global gains
-    global exposures
-    global cam_serial
+def stream_thread(): #this is the thread that starts the camera stream in setup tab. It calls the setup_stream function.
+	global CamObj
+	global cam_flags
+	cam_flags=1
 
+	#recognise which camera has been selected in dropdown to decide what index to pass to the setup_stream function
+	selected = choose_camera.get() 
+	for i in range (int(camObj.ncams)):
+		string_temp="Camera " + str(i+1)
+		if (string_temp==selected):
+			index=i	
 
-    crop_thread()
-    time.sleep(1)
-    StopCam2()
+	#disable start stream button to avoid accidental presses
+	setupSTREAMbtn.configure(state='disabled')
+	setupSTOP_STREAMbtn.configure(state='normal')
 
-    selected = choose.get()
-    if selected == options[0]:
-        cam_idx=cam_serial[0]
-    if selected == options[1]:
-        cam_idx=cam_serial[1]
-    if selected == options[2]:
-        cam_idx=cam_serial[2]
-    
-    cama[cam_idx]=Camera(int(cam_idx))
-    cam=cama[int(cam_idx)]
-    
-    cam.init()
-    width = cam.get_info('Width')['max']
-    height = cam.get_info('Height')['max']
-    xcrop = cam.get_info('OffsetX')['min']
-    ycrop = cam.get_info('OffsetY')['min']
-    crops[cam_idx]=[xcrop,width,ycrop,height]
-    gains[cam_idx]=[50]
-    exposures[cam_idx]=[1000]
-    cam.close()
-    gain=50
-    exp=1000
-    cropx_entry.delete(0, tk.END)
-    cropy_entry.delete(0, tk.END)
-    cropwidth_entry.delete(0, tk.END)
-    cropheight_entry.delete(0, tk.END)
-    cropx_entry.insert(0,xcrop)
-    cropy_entry.insert(0,ycrop)
-    cropwidth_entry.insert(0,width)
-    cropheight_entry.insert(0,height)
-    Gain_entry.delete(0,tk.END)
-    Gain_entry.insert(0,gain)
-    Exposure_entry.delete(0,tk.END)
-    Exposure_entry.insert(0,exp)  
+	t=threading.Thread(target=setup_stream,args=(index,)) #start the thread
+	t.start()
+
+def stop_stream_thread(): #thread to use stop_setup_stream function
+	global CamObj
+
+	t_stop=threading.Thread(target=stop_setup_stream)
+	t_stop.start()	
 
 ###################################################################################
 
-#this controls stream button in the record tab and is essential to start first before recording can be started.
-def start_stream():
-    global flag_stop #controls loop end point
-    #cam 1, 2 and 3 are each assigned to a camera
-    global cam1 
-    global cam2
-    global cam3
-    global ncam #number of cameras
-    global cam #temporary camera variable
-    global fps #fps
-    global cama #global array of serial number sorted cameras
-    global crops #crop parameters array
-    global cam_serial #serial numbers of cameras
-    global gains #gain parameters array
-    global exposures #exposure parameters array
-    global cam_name1, cam_name2, cam_name3 #names of three cameras for folder naming purposes
-    global opdir1, opdir2, opdir3 #path to saving folders
-    global imgs1,imgs2,imgs3 #arrays to save incoming images from each camera
-    global running_flag1, running_flag2, running_flag3 #flag to indicate writing is going on
-
-    flag_stop=0
-    
-    #change button states to allowed recording button to be pressed and disallow user from pressing stream twice
-    STREAMbtn.config(state="disabled")
-    RECORDbtn.config(state="normal")
-
-
-    fps = int(fps_choose.get())
-
-    # the followign for loop initializes Cameras and assigns saved parameters. It also starts all the cameras, and opens individual windows to display their output. 
-    for n in range(ncam): 
-        
-        if n==0:
-            n_temp=cam_serial[0]
-            cam1=Camera(int(n_temp))
-            cam1.init()
-
-            cam1.GainAuto = 'Off'
-
-            gain=gains[n_temp][0]
-            exp=exposures[n_temp][0]
-            gain=int(gain)
-            gain_min=int(cam1.get_info('Gain')['min'])
-            gain_max=int(cam1.get_info('Gain')['max'])
-            gain=gain*(gain_max-gain_min)/100
-            gain=gain_min+gain
-            cam1.Gain=gain
-
-            cam1.Width = crops[n_temp][1]
-            cam1.Height = crops[n_temp][3]
-            cam1.OffsetX = crops[n_temp][0]
-            cam1.OffsetY = crops[n_temp][2]
-            serial=cam1.get_info('DeviceSerialNumber')['value']
-            size = (cam1.Width,cam1.Height)
-
-            # update_label=str(str("Frame Size and Location: X=")+str(xcrop)+str(", Y= ")+str(ycrop)+str(", Height= ")+str(cam.Height)+str(", Width= ")+str(cam.Width))
-            # frame_size.config(text=update_label)
-
-            # To change the frame rate, we need to enable manual control
-            try:
-                cam1.AcquisitionFrameRateAuto = 'Off'
-                cam1.AcquisitionFrameRateEnabled = True
-            except:
-                cam1.AcquisitionFrameRateEnable = True
-            #cam1.AcquisitionFrameRate = cam1.get_info('AcquisitionFrameRate')['max']
-            cam1.AcquisitionFrameRate=fps
-
-            cam1.ExposureAuto = 'Off'
-            cam1.ExposureTime = exp 
-
-            cam1.start()
-
-
-            cam_name1=str("Camera ")+str(serial)
-            cv2.namedWindow(cam_name1, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(cam_name1, 510, 300)
-
-        if n==1:
-            n_temp=cam_serial[1]
-            cam2=Camera(int(n_temp))
-            cam2.init()
-
-            cam2.GainAuto = 'Off'
-            gain=gains[n_temp][0]
-            exp=exposures[n_temp][0]
-            gain=int(gain)
-            gain_min=int(cam2.get_info('Gain')['min'])
-            gain_max=int(cam2.get_info('Gain')['max'])
-            gain=gain*(gain_max-gain_min)/100
-            gain=gain_min+gain
-            cam2.Gain=gain
-
-            cam2.Width = crops[n_temp][1]
-            cam2.Height = crops[n_temp][3]
-            cam2.OffsetX = crops[n_temp][0]
-            cam2.OffsetY = crops[n_temp][2]
-            serial=cam2.get_info('DeviceSerialNumber')['value']
-            size = (cam2.Width,cam2.Height)
-
-            # update_label=str(str("Frame Size and Location: X=")+str(xcrop)+str(", Y= ")+str(ycrop)+str(", Height= ")+str(cam.Height)+str(", Width= ")+str(cam.Width))
-            # frame_size.config(text=update_label)
-
-            # To change the frame rate, we need to enable manual control
-            try:
-                cam2.AcquisitionFrameRateAuto = 'Off'
-                cam2.AcquisitionFrameRateEnabled = True
-            except:
-                cam2.AcquisitionFrameRateEnable = True
-            #cam2.AcquisitionFrameRate = cam2.get_info('AcquisitionFrameRate')['max']
-            cam2.AcquisitionFrameRate=fps
-
-
-            cam2.ExposureAuto = 'Off'
-            cam2.ExposureTime = exp
-
-            cam2.start()
-
-            cam_name2=str("Camera ")+str(serial)
-            cv2.namedWindow(cam_name2, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(cam_name2, 510, 300)
-    
-
-        if n==2:
-            n_temp=cam_serial[2]
-            cam3=Camera(int(n_temp))
-            cam3.init()
-
-            cam3.GainAuto = 'Off'
-            gain=gains[n_temp][0]
-            exp=exposures[n_temp][0]
-            gain=int(gain)
-            gain_min=int(cam3.get_info('Gain')['min'])
-            gain_max=int(cam3.get_info('Gain')['max'])
-            gain=gain*(gain_max-gain_min)/100
-            gain=gain_min+gain
-            cam3.Gain=gain
-
-            cam3.Width = crops[n_temp][1]
-            cam3.Height = crops[n_temp][3]
-            cam3.OffsetX = crops[n_temp][0]
-            cam3.OffsetY = crops[n_temp][2]
-            serial=cam3.get_info('DeviceSerialNumber')['value']
-            size = (cam3.Width,cam3.Height)
-
-            # update_label=str(str("Frame Size and Location: X=")+str(xcrop)+str(", Y= ")+str(ycrop)+str(", Height= ")+str(cam.Height)+str(", Width= ")+str(cam.Width))
-            # frame_size.config(text=update_label)
-
-            # To change the frame rate, we need to enable manual control
-            try:
-                cam3.AcquisitionFrameRateAuto = 'Off'
-                cam3.AcquisitionFrameRateEnabled = True
-            except:
-                cam3.AcquisitionFrameRateEnable = True
-            #cam3.AcquisitionFrameRate = cam3.get_info('AcquisitionFrameRate')['max']
-            cam3.AcquisitionFrameRate=fps
-
-
-            cam3.ExposureAuto = 'Off'
-            cam3.ExposureTime = exp
-
-            cam3.start()
-
-            cam_name3=str("Camera ")+str(serial)
-            cv2.namedWindow(cam_name3, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(cam_name3, 510, 300)
-    
-    global imgs_con
-    global record_flag
-    record_flag=0 #set recording_flag to 0
-
-    while True: #start a loop to keep showing camera feeds, untill record button is pressed. that will change flag_stop to 1 and record_flag to 0. 
-        imc1 = cam1.get_array()
-        cv2.imshow(cam_name1,imc1)
-        if ncam>1:
-            imc2 = cam2.get_array()
-            cv2.imshow(cam_name2,imc2)
-        if ncam>2:
-            imc3 = cam3.get_array()
-            cv2.imshow(cam_name3,imc3)
-        cv2.waitKey(1)
-        if flag_stop==1:
-            break
-
-    if record_flag==0: #if flag_stop==1 but record isnt pressed, revert things to default and wait for start stream to be pressed again
-        STREAMbtn.config(state="normal")
-        RECORDbtn.config(state="disabled")
-
-    if record_flag==1: #if record_flag==1, start recording with this part
-        #each of these three flags are for writer functions for each of the cameras
-        running_flag1=0 
-        running_flag2=0 
-        running_flag3=0
-
-        flag_stop=1 #stop all streams. (Another one I cant figure out how to keep cameras streaming and not get frame drops)
-
-        create_folder() #calls create_folder function to make paths for videos
-
-        #create arrays to store timestamps as images are recorded
-        arr1 = [[0]*2]*1
-        if ncam>1:
-            arr2=[[0]*2]*1
-        if ncam>2:
-            arr3=[[0]*2]*1
-        
-        fps = int(fps_choose.get()) #set camera fps
-        
-        t_total=int(time_entry.get()) #set total time of recording
-
-        imgs1=[]
-        imgs2=[]
-        imgs3=[]
-
-        record_status.config(bg="black", fg="red",text="Recording") #change text label to show current status
-        
-        #monitor number of frames from each camera
-        framecount=0
-        framecount2=0
-        framecount3=0
-        n=0 
-
-        t=1000/fps #this is essentially milliseconds to wait in between allowing image capture
-
-        #start cameras
-        cam1.start()
-        if ncam>1:
-            cam2.start()
-        if ncam>2:
-            cam3.start()
-
-        #make variables to keep track of time for iterative frame rate adjustment
-        prev_time=0
-        time_start = time.time()
-        
-        #annotating for cam1, assume the rest two are identical
-
-        if ncam==1: #decides how many to run at once based on number of connected cameras
-            while time.time()<(time_start+t_total) and record_flag==1: #loop will keep running untill time expires or abort is pressed which would set running_flag to 1
-                interval=1000*(time.time()-prev_time) #milliseconds passed between current time and a recorded prev_time
-                if interval>t: # we only want to capture images the first time time passed (ms) is greater than "t" which is decided from fps in line 922
-                    prev_time=time.time() #change prev_time to now so next loop only happens when t more milliseconds have passed
-                    framecount+=1 #increase frame counter
-                    n+=1 #row_number for timestamps (this increased only once per loop as opposed to per camera to keep all timstamps for same fram number in same row)
-                    imc1 = cam1.get_array() #get image from camera
-                    newrow = [int(n), math.floor((time.time() - time_start)*1000) ] #record timestamp
-                    arr1 = np.vstack([arr1, newrow]) #add timestamp to variable arr1
-                    imgs1.append(imc1) #add acquired image to imgs1 array
-                    if (framecount%50)==0: #this is an iterative loop which runs every 50 frames that makes sure capture doesnt lag or lead
-                        time_taken=1000*(time.time()-time_start) #see how many total milliseconds have passed
-                        t=(t*framecount*1000)/(fps*time_taken) #this ensure that always 50 frames will be captured in the correct amount of time and if not the time to wait between capturing frames will be reduced or increased acoording to current total amount captured
-                    if ((framecount)%1000)==0: #if you have new 1000 frames recorded, remove the first 1000, send it to a temporary array, and sent that array to be written.
-                        if running_flag1==0: #only send to writer if writer is free
-                            im_t=imgs1[0:999]
-                            cam1thread(im_t)
-                            imgs1[0:999]=[]
-                            gc.collect() #clear memory of those 1000 frames
-
-        if ncam==2:
-            while time.time()<(time_start+t_total) and record_flag==1:
-                interval=1000*(time.time()-prev_time)
-                if interval>t:
-                    prev_time=time.time()
-                    framecount+=1
-                    framecount2+=1
-                    n+=1
-                    imc1 = cam1.get_array()
-                    newrow = [int(n), math.floor((time.time() - time_start)*1000) ]
-                    arr1 = np.vstack([arr1, newrow])
-
-                    imc2 = cam2.get_array()
-                    newrow = [int(n), math.floor((time.time() - time_start)*1000) ]
-                    arr2 = np.vstack([arr2, newrow])
-
-                    imgs1.append(imc1)
-                    imgs2.append(imc2)
-
-                    if (framecount%50)==0:
-                        time_taken=1000*(time.time()-time_start)
-                        t=(t*framecount*1000)/(fps*time_taken)
-                    if ((framecount)%1000)==0:
-                        if running_flag1==0:
-                            im_t=imgs1[0:999]
-                            cam1thread(im_t)
-                            imgs1[0:999]=[]
-                            gc.collect()
-                    if ((framecount2)%1000)==0:
-                        if running_flag2==0:
-                            im_t=imgs2[0:999]
-                            cam2thread(im_t)
-                            imgs2[0:999]=[]
-                            gc.collect()
-
-
-        if ncam==3:
-            while time.time()<(time_start+t_total) and record_flag==1:
-                interval=1000*(time.time()-prev_time)
-                if interval>t:
-                    prev_time=time.time()
-                    framecount+=1
-                    framecount2+=1
-                    framecount3+=1
-                    n+=1
-                    imc1 = cam1.get_array()
-                    newrow = [int(n), math.floor((time.time() - time_start)*1000) ]
-                    arr1 = np.vstack([arr1, newrow])
-
-                    imc2 = cam2.get_array()
-                    newrow = [int(n), math.floor((time.time() - time_start)*1000) ]
-                    arr2 = np.vstack([arr2, newrow])
-
-                    imc3 = cam3.get_array()
-                    newrow = [int(n), math.floor((time.time() - time_start)*1000) ]
-                    arr3 = np.vstack([arr3, newrow])
-
-                    imgs1.append(imc1)
-                    imgs2.append(imc2)
-                    imgs3.append(imc3)
-
-                    if (framecount%50)==0:
-                        time_taken=1000*(time.time()-time_start)
-                        t=(t*n*1000)/(fps*time_taken)
-                    if ((framecount)%1000)==0:
-                        if running_flag1==0:
-                            im_t=imgs1[0:999]
-                            cam1thread(im_t)
-                            imgs1[0:999]=[]
-                            gc.collect()
-                    if ((framecount2)%1000)==0:
-                        if running_flag2==0:
-                            im_t=imgs2[0:999]
-                            cam2thread(im_t)
-                            imgs2[0:999]=[]
-                            gc.collect()
-                    if ((framecount3)%1000)==0:
-                        if running_flag3==0:
-                            im_t=imgs3[0:999]
-                            cam3thread(im_t)
-                            imgs3[0:999]=[]
-                            gc.collect()
-
-        #Once recording is done, there is a high chance that video writing is still going on so change status label to saving
-        if record_flag==1:
-            record_status.config(bg="black", fg="yellow",text="Saving")
-
-            write_video() #special function to handle writing of remaining frames after recording is done
-
-            
-            while True:
-                if running_flag1==0 and running_flag2==0 and running_flag3==0: #once all writers stop, then break this loop and move on 
-                    break
-
-
-            #save all timstamps as csv files in corresponding folders
-            csv_timestamp(opdir1,arr1)
-            if ncam>1:
-                csv_timestamp(opdir2,arr2)
-            if ncam>2:
-                csv_timestamp(opdir3,arr3)
-
-        
-        #stop all cameras
-        cam1.stop()
-        if ncam>1:
-            cam2.stop()
-        if ncam>2:
-            cam3.stop()
-
-       #change recording status to not recording and close all windows
-        record_status.config(bg="black", fg="white",text="Not Recording")
-        cv2.destroyAllWindows()
-        flag_stop=0
-        record_flag=0
-        del imgs1
-        del imgs2
-        del imgs3
-        gc.collect() #clear all image arrays and free memory
-
-        pause() #pause timer
-        reset() #reset timer
-
-        #reset button statuse to default so user can record another video
-        STREAMbtn.config(state="normal")
-        RECORDbtn.config(state="disabled")
-
-    if record_flag==0: #this handles closing everything if recording was never initiated but stream was stopped  
-        cam1.stop()
-        if ncam>1:
-            cam2.stop()
-        if ncam>2:
-            cam3.stop()
-
-
-        cv2.destroyAllWindows()
-        flag_stop=0
-
-def stop_stream():
-    global flag_stop
-    global ncam, cam1, cam2, cam3
-
-    flag_stop=1
-
-    
-def abort_record():
-    global record_flag
-    record_flag=0
-
-###################################################################################
-#function to make folders required to save videos, called by create_folder function. We want to saved a user named folder in a folder named with camera name (serial number). If user doesnt give an input for the name, or forgets to change it before next reocrding, name the folder using date and time of recording instead.
-def folder_name(camera_folder,desktop,dt_string):
-    file_name = "/" + file_name_entry.get()
-    if len(file_name_entry.get())>0:
-        while True:
-            if os.path.exists(file_name):
-                output_dir = desktop+camera_folder
-                output_dir = output_dir.replace(os.sep,'/')
-                output_dir = output_dir+dt_string
-            else:
-                output_dir = desktop + camera_folder
-                output_dir = output_dir.replace(os.sep,'/')
-                output_dir = output_dir + file_name
-                if not os.path.exists(output_dir):
-                    os.makedirs(output_dir)
-                break
-    else:
-        output_dir = desktop+camera_folder
-        output_dir = output_dir.replace(os.sep,'/')
-        output_dir = output_dir+dt_string
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    return output_dir
-
-#function to handle all folder naming and creation for all cameras
-def create_folder():
-    global ncam, cam1, cam2, cam3
-    global opdir1, opdir2, opdir3
-
-
-    now = datetime.now() #get date and time
-    dt_string = now.strftime("%Y_%m_%d %H_%M") #make a string for YY_MM_DD_HH_MM
-    desktop=os.path.join((os.environ['USERPROFILE']),'Desktop/FLIR_Recording') #get path to desktop
-    file_name = "/" + file_name_entry.get()
-
-    serial=cam1.get_info('DeviceSerialNumber')['value'] #camera folder will be named using serial number
-    camera_folder='/'+'Camera '+str(serial)+'/'
-
-    opdir1=folder_name(camera_folder,desktop,dt_string) #make the folder path for first cam
-
-    if ncam>1:
-        serial=cam2.get_info('DeviceSerialNumber')['value']
-        camera_folder='/'+'Camera '+str(serial)+'/'
-
-        opdir2=folder_name(camera_folder,desktop,dt_string)  #make the folder path for second cam
-
-    if ncam>2:
-        serial=cam3.get_info('DeviceSerialNumber')['value']
-        camera_folder='/'+'Camera '+str(serial)+'/'
-
-        opdir3=folder_name(camera_folder,desktop,dt_string)  #make the folder path for third cam
-
-#create and save a csv file of timestamp data. 
-def csv_timestamp(output_dir,arr):
-    file = '/' + 'timestamp' + '.csv'
-    csv_file = output_dir + file
-
-    with open(csv_file, 'w', newline = '') as timestamp:
-        csv_writer = csv.writer(timestamp)  
-        timestamp_file_header = ["Frame", "Time(ms)"]
-        csv_writer.writerow(timestamp_file_header)
-        csv_writer.writerows(arr)  
-
-    timestamp.close()
-
-#called by write_video function to handle writing of leftover frames from cam 1
-def write_video1():
-    global imgs1
-
-    frames_left=len(imgs1)
-    iterations1=math.floor(frames_left/1000)
-
-    for j in range(iterations1):
-        im_t=imgs1[0:999]
-        cam1thread(im_t)
-        previous_time = time.time()
-        while True:
-            if time.time()-previous_time>20:
-                break
-        imgs1[0:999]=[]
-    
-    frames_left=len(imgs1)
-    if frames_left>10:
-        cam1thread(imgs1)
-
-#called by write_video function to handle writing of leftover frames from cam 2
-def write_video2():
-    global imgs2
-
-    frames_left=len(imgs2)
-    iterations2=math.floor(frames_left/1000)
-
-    for j in range(iterations2):
-        im_t=imgs2[0:999]
-        cam2thread(im_t)
-        previous_time = time.time()
-        while True:
-            if time.time()-previous_time>20:
-                break
-        imgs2[0:999]=[]
-    
-    frames_left=len(imgs2)
-    if frames_left>10:
-        cam2thread(imgs2)
-
-#called by write_video function to handle writing of leftover frames from cam 3
-def write_video3():
-    global imgs3
-
-    frames_left=len(imgs3)
-    iterations3=math.floor(frames_left/1000)
-
-    for j in range(iterations3):
-        im_t=imgs3[0:999]
-        cam3thread(im_t)
-        previous_time = time.time()
-        while True:
-            if time.time()-previous_time>20:
-                break
-        imgs3[0:999]=[]
-    
-    frames_left=len(imgs3)
-    if frames_left>10:
-        cam3thread(imgs3)
-
-#when record button is pressed, this will kick the streaming loop into recording mode
-def record_sync():
-    global flag_stop
-    global record_flag
-    record_flag=1
-    flag_stop=1
-
-###################################################################################
-
-global running
-running = False
-
-#time dollowing are functions for timer
-def start():
-    global running
-    global time_start_timer
-    time_start_timer=time.time()
-    if not running:
-        update()
-        running = True
-
-def pause():
-    global running
-    global update_time
-    if running:
-        stopwatch_label.after_cancel(update_time)
-        running = False
-
-def reset():
-    global running
-    global update_time
-    if running:
-        stopwatch_label.after_cancel(update_time)
-        running = False
-    
-    stopwatch_label.config(text='00:00')
-
-def update():
- 
-    global time_start_timer
-
-    t=math.floor((time.time()-time_start_timer))
-
-    
-    
-    sec=t%60
-    minit=math.floor(t/60)
-    minutes_string = f'{minit}' if minit > 9 else f'0{minit}'
-    seconds_string = f'{sec}' if sec > 9 else f'0{sec}'
-    stopwatch_label.config(text=minutes_string + ':' + seconds_string)
-    global update_time
-    update_time = stopwatch_label.after(500, update)
-
-
-
-
-###################################################################################
-#MAKE the GUI and add button controls
-
-
-win = tk.Tk()
-choose = tk.StringVar()
-fps_choose = tk.IntVar()
-choose.set( "Camera 1" )
-fps_choose.set(30)
-win.minsize(325,300)
-
-win.resizable(True,True)
-
-# initialize window with title & minimum size
-win.title("REVEALS")
-tabControl = ttk.Notebook(win)
-
-tab1 = ttk.Frame(tabControl)
-tab2 = ttk.Frame(tabControl)
-
-s=ttk.Style()
-s.theme_use('classic')
-s.configure('TNotebook.Tab', background="gray")
-s.map("TNotebook", background= [("selected", "white")])
-  
-tabControl.add(tab1, text ='Camera Setup')
-tabControl.add(tab2, text ='Recording')
-tabControl.pack(expand = 1, fill ="both")
-
-mycolor='#e0dcdc'
-
-STOPbtn1 = tk.Button(tab1, bg="red", fg="white",bd=4, width=10,text="Stop Stream", command=StopCam2)
-STOPbtn1.grid(column=2, row=3)
-
-STOPbtn2 = tk.Button(tab2,  bg="red", fg="white",bd=4, width=10, text="Stop Stream", command=threading)
-STOPbtn2.grid(column=2, row=1)
-
-STREAMbtn = tk.Button(tab2,  bg="green",fg="white",bd=4, width=10, text="Stream", command=threading1)
-STREAMbtn.grid(column=1, row=1,pady=10)
-
-RECORDbtn = tk.Button(tab2, bd=4, width=10, text="Record", command=lambda:[record_start(),start()],state="disabled")
-RECORDbtn.grid(column=1, row=5, pady=10)
-
-CONNECTbtn=tk.Button(tab1,bd=4, width=10, text="Connect", command=connect)
-CONNECTbtn.grid(column=1, row=1,pady=10)
-
-record_status=tk.Label(tab2,bg="black",fg="white",pady=10,text="Not recording")
-record_status.grid(column=1,row=6)
-
-time_label = tk.Label(tab2, bg=mycolor,text="Recording Time(s)")
-time_label.grid(column=1, row=3, pady=10)
-
-time_entry = tk.Entry(tab2, width=5)
-time_entry.grid(column=1, row=4)
-
-fps_label = tk.Label(tab2, bg=mycolor,text="FPS")
-fps_label.grid(column=2, row=3)
-
-fps_menu = tk.OptionMenu(tab2, fps_choose, *fps_options)
-fps_menu.grid(column=2,row=4)
-
-# fps_entry = tk.Entry(tab2, width=5)
-# fps_entry.grid(column=2, row=3)
-
-stopwatch_label = tk.Label(tab2,text='00:00:00', font=('Arial', 12))
-stopwatch_label.grid(column=3, row=5)
-
-stoptimerbtn = tk.Button(tab2, bd=4, width=10, text="Stop Timer", command=pause)
-stoptimerbtn.grid(column=3, row=6)
-
-resetbtn = tk.Button(tab2, bd=4, width=10, text="Reset Timer", command=reset)
-resetbtn.grid(column=3, row=7)
-
-abort_btn=tk.Button(tab2, bg="red",bd=4, width=10, text="ABORT", command=abort_thread)
-abort_btn.grid(column=3, row=8,pady=30)
-
-#Cropping portion
-
-
-Gain_label = tk.Label(tab1, bg=mycolor,text="Gain (%)")
-Gain_label.grid(column=1, row=4)
-
-Gain_entry = tk.Entry(tab1, width=5)
-Gain_entry.grid(column=2, row=4)
-
-Exposure_label = tk.Label(tab1, bg=mycolor,text="Exposure (micro sec)")
-Exposure_label.grid(column=1, row=5)
-
-Exposure_entry = tk.Entry(tab1, width=5)
-Exposure_entry.grid(column=2, row=5)
-
-cropx_label = tk.Label(tab1, bg=mycolor,text="X Crop")
-cropx_label.grid(column=1, row=7)
-
-cropx_entry = tk.Entry(tab1, width=5)
-cropx_entry.grid(column=1, row=8)
-
-
-cropy_label = tk.Label(tab1, bg=mycolor,text="Y Crop")
-cropy_label.grid(column=2, row=7)
-
-cropy_entry = tk.Entry(tab1, width=5)
-cropy_entry.grid(column=2, row=8)
-
-cropwidth_label = tk.Label(tab1, bg=mycolor,text="Width")
-cropwidth_label.grid(column=1, row=9)
-
-cropwidth_entry = tk.Entry(tab1, width=5)
-cropwidth_entry.grid(column=1, row=10)
-
-cropheight_label = tk.Label(tab1,bg=mycolor, text="Height")
-cropheight_label.grid(column=2, row=9)
-
-cropheight_entry = tk.Entry(tab1, width=5)
-cropheight_entry.grid(column=2, row=10)
-
-frame_size=tk.Label(tab1,bg=mycolor,pady=10,text="Frame Size and Location:\n X=0, Y=0,\n Height=768, Width=1024")
-frame_size.grid(column=1,row=11,pady=10)
-
-camera_serial=tk.Label(tab1,bg=mycolor,pady=10,text="Serial Number:\n ")
-camera_serial.grid(column=2,row=11,pady=10)
-
-camera_deets=tk.Label(tab1,pady=10,bg=mycolor,text="Number of cameras=0")
-camera_deets.grid(column=2,row=1)
-
-
-# Camera Selection Menu
-menu = tk.OptionMenu(tab1, choose, *options)
-menu.grid(column=1,row=2,pady=10)
-
-select_button = tk.Button(tab1,  bd=4, width=12, text='Select Camera', command=select_camera)
-select_button.grid(column=2, row=2)
-
-stream_camerabtn=tk.Button(tab1, bg="green",fg="white", bd=4, width=12, text='Stream Camera', command=crop_thread)
-stream_camerabtn.grid(column=1, row=3,pady=10)
-
-# File Name
-file_name_label = tk.Label(tab2, text="Folder Name", bg=mycolor)
-file_name_label.grid(column=2, row=2)
-
-file_name_entry=tk.Entry(tab2, width=20)
-file_name_entry.grid(column=3, row=2)
-
-mycolor='#e0dcdc'
-crop_label=tk.Label(tab1,bg=mycolor, text="Crop")
-crop_label.grid(column=1,row=6,pady=10)
-
-reset_camerabtn=tk.Button(tab1, bd=4, width=20, text='Reset Camera (press twice)', command=reset_camera)
-reset_camerabtn.grid(column=2, row=6)
-
-
-global flag_stop
-def on_closing():
-    if messagebox.askokcancel("Quit", "Do you want to quit?"):
-       
-       cv2.waitKey(1)
-       cv2.destroyAllWindows()
-       cv2.waitKey(1)
-       win.destroy()
-
-win.protocol("WM_DELETE_WINDOW", on_closing)
-
-win.mainloop()
+########VIDEO ACQUISITION TAB FUNCTIONS########
+
+def select_folder(): #this function sets the directory for saving videos when using Browse button
+	global camObj
+	folder_selected = filedialog.askdirectory()
+	if folder_selected:
+		camObj.video_path=folder_selected
+		Folder_display_path.configure(text=folder_selected) #update label to show path of recording
+
+
+
+def select_experiment(event): #this function sets folder name for the instance inside the save location on detecting an input in entry box
+	global camObj
+	if (len(Experiment_name_entry.get())>0):
+		valid_folder_pattern = r'^[a-zA-Z0-9_\-\s\.]+$'
+		if not re.match(valid_folder_pattern, str(Experiment_name_entry.get())):
+   			messagebox.showerror('Error','Invalid folder name\nPlease try again')
+   			return False
+		else:
+			camObj.experiment_name=str(Experiment_name_entry.get())
+			return True
+
+
+
+def set_path(cam_name,vpath,ename): #this function handles creation of the folders for recording
+	global camObj
+	now = datetime.now() #get date and time
+	dt_string = now.strftime("%Y_%m_%d %H_%M_%S") #make a string for YY_MM_DD_HH_MM
+	desktop=os.path.join((os.environ['USERPROFILE']),'Desktop/FLIR_Recording') #get path to desktop
+	if vpath!='desktop': #check if user provided any input for folder location
+		desktop=vpath
+	output_dir = desktop+'/'+cam_name+'/'
+	output_dir = output_dir.replace(os.sep,'/')
+
+	
+
+	if str(ename)!='experiment': #check if user provided any input for animal name
+		exp_name=str(ename)
+
+		if not os.path.exists((output_dir+exp_name)):
+			output_dir=output_dir+exp_name			
+		else:
+			output_dir = output_dir+dt_string #if folder name already exists, make a folder name with current date and time
+	else:
+		output_dir = output_dir+dt_string #if no user input was provided, make a folder name with current date and time
+
+
+		
+	if not os.path.exists(output_dir):
+	    os.makedirs(output_dir)
+	return output_dir
+
+def csv_timestamp(output_dir,arr): #this function creates the csv for saving timestamp. The inputs are the folder path and the array of timestamps
+	file = '/' + 'timestamp' + '.csv'
+	csv_file = output_dir + file
+
+	with open(csv_file, 'w', newline = '') as timestamp:
+	    csv_writer = csv.writer(timestamp)  
+	    timestamp_file_header = ["Frame", "Time(ms)"]
+	    csv_writer.writerow(timestamp_file_header)
+	    csv_writer.writerows(arr)  
+
+	timestamp.close()
+
+def record_frame_buttons_activate(): #change acqusition tab button state to active
+	Recording_status.configure(text='Not Recording',font="Helevtica 11 underline")
+	Browse_button.configure(state='normal')
+	recordSTREAMbtn.configure(state='normal')
+	RECORD_btn.configure(state='normal')
+
+def record_frame_buttons_deactivate():  #change acqusition tab button state to inactive
+	Browse_button.configure(state='disabled')
+	recordSTREAMbtn.configure(state='disabled')
+	RECORD_btn.configure(state='disabled')
+	Recording_status.configure(text='Recording',font="Helevtica 16 bold")
+
+
+def pooled_record(): #This function starts a multiprocessing pools for all cameras to record video on pressing the record button
+
+	global camObj
+	logging.basicConfig(level=logging.DEBUG)
+
+	record_frame_buttons_deactivate() #deactivate buttons to avoid accidental presses
+	root.update_idletasks()
+
+	
+	
+	time_start=time.time() #start time
+
+	items=[] #array to pass all required parameters to the worker function record_sep
+	vpath=camObj.video_path
+	ename=camObj.experiment_name
+
+	#check all entries for validity, and pass through only if all are valid. Otherwise reactivate all buttons and exit the function
+
+	if len(Recording_time_entry.get())>0:
+		t_total=int(Recording_time_entry.get()) #set total time of recording
+	else:
+		messagebox.showerror('Error','Invalid Recording Time')
+		record_frame_buttons_activate()
+		return
+	if t_total<=0:
+		messagebox.showerror('Error','Invalid Recording Time')
+		record_frame_buttons_activate()
+		return
+
+	if len(FPS_entry.get())>0:
+		fps=int(FPS_entry.get())
+	else:
+		messagebox.showerror('Error','Invalid FPS')
+		record_frame_buttons_activate()
+		return
+	if (fps<15) or (fps>120):
+		messagebox.showerror('Error','Please enter FPS between 15-120')
+		record_frame_buttons_activate()
+		return
+
+	if len(FPV_entry.get())>0:
+		frame_bin=int(FPV_entry.get())
+	else:
+		messagebox.showerror('Error','Invalid FPV')
+		record_frame_buttons_activate()
+		return
+	if frame_bin<=0:
+		messagebox.showerror('Error','Invalid FPV')
+		record_frame_buttons_activate()
+		return
+	
+	
+	
+	for i in range (int(camObj.ncams)): #asssign input parameters to worker functions
+		crop_current=[int(camObj.get_OffsetX(i)),int(camObj.get_Width(i)),int(camObj.get_OffsetY(i)),int(camObj.get_Height(i)),int(camObj.get_Gain(i)),int(camObj.get_Exposure(i))]
+		items.append((int(i),time_start,t_total,fps,frame_bin,vpath,ename,crop_current))
+
+
+	with Pool() as pool: #start pool
+		_=pool.starmap_async(record_sep, items)
+		pool.close()
+		pool.join()
+
+	try:	
+		cv2.destroyAllWindows() #close camera windows if any
+	except:
+		pass
+
+	record_frame_buttons_activate() #activate all buttons again for next round of recording
+
+
+def record_sep(cidx,t_start,tt,fps,frame_bin,video_path,exp_name,crop_para): #worker function for recording from each camera
+	global camObj
+	
+
+	cam_name='Camera '+str(cidx) #camera name based on cidx (camera index)
+
+	output_path=set_path(cam_name,video_path,exp_name) #set output path
+
+	#set all user decided camera parameters
+	
+	camObj.setFrameSize(cidx,crop_para[0:4])
+
+	camObj.setGain(cidx,crop_para[4])
+	
+	camObj.setExp(cidx,crop_para[5])
+	
+	camObj.start(cidx)
+	
+	
+	count=1 #start a count for number of videos in each folder
+
+	item=str('behavcam_')+str(count-1)+str('.mp4') #name the first video behavcam_0.mp4
+
+
+	if os.path.exists(os.path.join(output_path, item)):
+		flag_name_check=0 #this will change when a video name doesnt exist in the output folder
+		while flag_name_check==0:
+			count=count+1
+			item=str('behavcam_')+str(count-1)+str('.mp4')
+			if not os.path.exists(os.path.join(output_path, item)):
+				flag_name_check=1
+	item=str('behavcam_')+str(count-1)+str('.mp4')
+	video_name=os.path.join(output_path, item) #set the video output
+	count=count+1
+
+	fourcc = cv2.VideoWriter_fourcc(*'mp4v') #initialise the video writer and set the format
+	prev_time=0 #track time
+	
+	t=1000/fps #set interval between frames based on fps
+	frames=0 #frame counter 
+	
+	ts_array = [[0]*2]*1 # initialise the time stamp array
+
+
+	cv2.namedWindow(cam_name, cv2.WINDOW_NORMAL) #open a window to display the camera stream
+	cv2.resizeWindow(cam_name, 510, 300)
+	t_start=time.time() #starting time after all intialization is done
+	while time.time()<(t_start+tt): #monitor duration of recording. tt is total time in seconds from user input
+		interval=1000*(time.time()-prev_time) #interval since last check of this loop in milliseconds
+		if interval>t: #if interval passes the time for correct frame rate
+			prev_time=time.time() #record time of frame intake
+			frames=frames+1 #increase frame counter
+			
+			imc1 = camObj.getFrame(cidx) #get frame from camera
+			newrow = [int(frames), math.floor((time.time() - t_start)*1000) ] 	#uncomment this to save timestamps as relative from beginning of recording
+
+			#newrow = [int(frames), datetime.now().timestamp()] 				#uncomment this to save timestamps in real time instead of from beginning of recording
+
+			ts_array = np.vstack([ts_array, newrow]) #update the timestamp array
+			try:
+				out.write(imc1) #write the frame to video if its open
+			except:
+				#open video if its not already open
+				height,width=imc1.shape
+				size = (width,height)
+				out = cv2.VideoWriter(video_name,fourcc, 30, size, False)
+				out.write(imc1)
+
+			if (frames%frame_bin)==0:
+				
+				#once number of frame reached frames per video as input by user, close the video and create the next one
+				out.release()
+				item=str('behavcam_')+str(count-1)+str('.mp4')
+				video_name=os.path.join(output_path, item) 
+				count=count+1
+				out = cv2.VideoWriter(video_name,fourcc, 30, size, False)
+
+			
+			cv2.imshow(cam_name,imc1) #display the frame
+			cv2.waitKey(1)
+			if (frames%50)==0: #every 50 frames, see if the recording is lagging or leading according to desired fps, and adjust the interval between frames to compensate for that iteratively		
+				time_taken=1000*(time.time()-t_start)
+				t=(t*frames*1000)/(fps*time_taken)
+			if cv2.getWindowProperty(cam_name,cv2.WND_PROP_VISIBLE) <1: #if window is force closed, break the loop
+				break
+	camObj.stop(cidx) #stop the camera
+
+	csv_timestamp(output_path,ts_array) #output the timestamp
+	
+	out.release()	#release the video object
+
+
+def pooled_stream(): #This function starts a multiprocessing pools for all cameras to stream video from all cameras on pressing the stream camera button in the acquisition tab
+	global camObj
+
+	t_total=int(Recording_time_entry.get()) #set total time of recording
+	Browse_button.configure(state='disabled')
+	RECORD_btn.configure(state='disabled')
+	recordSTREAMbtn.configure(state='disabled')
+	root.update_idletasks()
+
+	
+	time_start=time.time()
+
+
+
+	items=[]
+	vpath=camObj.video_path
+	ename=camObj.experiment_name
+
+	
+	# if (selected=="All"):
+	for i in range (int(camObj.ncams)):
+		crop_current=[int(camObj.get_OffsetX(i)),int(camObj.get_Width(i)),int(camObj.get_OffsetY(i)),int(camObj.get_Height(i)),int(camObj.get_Gain(i)),int(camObj.get_Exposure(i))]
+		items.append((int(i),time_start,t_total,vpath,ename,crop_current))
+
+
+	with Pool() as pool:
+		_=pool.starmap_async(stream_sep, items)
+		pool.close()
+		pool.join()
+
+	try:	
+		cv2.destroyAllWindows()
+	except:
+		pass
+
+	Browse_button.configure(state='normal')
+	RECORD_btn.configure(state='normal')
+	recordSTREAMbtn.configure(state='normal')
+
+
+def stream_sep(cidx,t_start,tt,video_path,exp_name,crop_para):  #worker function for streaming all cameras together
+	global camObj
+
+	camObj.setFrameSize(cidx,crop_para[0:4])
+
+
+	camObj.setGain(cidx,crop_para[4])
+	
+	camObj.setExp(cidx,crop_para[5])
+	
+	camObj.start(cidx)
+	
+
+	camObj.start(cidx)
+
+	cam_name='Camera '+str(cidx)
+	cv2.namedWindow(cam_name, cv2.WINDOW_NORMAL)
+	cv2.resizeWindow(cam_name, 510, 300)
+
+	while time.time()<(t_start+300):
+		imc1 = camObj.getFrame(cidx)
+		cv2.imshow(cam_name,imc1)
+		cv2.waitKey(1)
+
+		if cv2.getWindowProperty(cam_name,cv2.WND_PROP_VISIBLE) <1:
+			break
+		
+	camObj.stop(cidx)
+
+	
+##########################################################################################
+
+########SPLASH SCREEN AT LOADING########
+
+if __name__ == '__main__':
+	splash_window = tk.Tk()
+	splash_window.title("REVEALS 2.0")
+	splash_window.geometry("250x250")
+	splash_window.configure(bg="white")
+
+	# Load the image
+	image = Image.open("splash_screen.jpg") 
+	image = image.resize((200, 200)) 
+	photo = ImageTk.PhotoImage(image)
+
+	# Create a label to display the image
+	image_label = tk.Label(splash_window, image=photo)
+	image_label.pack()
+
+	# Create a label for the text
+	text_label = tk.Label(splash_window, text="Initializing REVEALS..", font=("Arial", 12))
+	text_label.pack()
+
+
+	splash_window.update()
+	time.sleep(5)  # Wait for 5 seconds
+	splash_window.destroy()
+
+
+##########################################################################################
+
+########BASE GUI FRAME ASSIGNMENT########
+
+#root = ThemedTk(theme="adapta")
+root=tk.Tk()
+sv_ttk.use_dark_theme()
+root.resizable(True, True) 
+#root.configure(background='grey')
+root.title('REVEALS 2.0')
+
+# s = ttk.Style(root)
+# s.configure('.', font=18)
+
+Main_frame=ttk.Frame(root,relief='solid')
+Main_frame.grid(row=0, column=0, sticky="nsew")
+
+tabControl = ttk.Notebook(Main_frame) 
+#tabControl.bind("<<NotebookTabChanged>>", adjust_window_size)
+tab1 = ttk.Frame(tabControl) 
+tab2 = ttk.Frame(tabControl) 
+
+
+root.columnconfigure(0, weight=1)
+root.rowconfigure(0, weight=1)
+root.rowconfigure(1, weight=1)
+
+tabControl.add(tab1, text ='Camera Setup') 
+tabControl.add(tab2, text ='Video Acqusition') 
+tabControl.pack(expand = 1, fill ="both") 
+
+connect_Frame=ttk.Frame(tab1,relief='sunken')
+connect_Frame.grid(row=0,sticky='nsew',padx=10,pady=10)
+
+setup_Frame=ttk.Frame(tab1,relief='sunken')
+setup_Frame.grid(row=1,sticky='nsew',padx=10,pady=10)
+
+recording_details_Frame=ttk.Frame(tab2,relief='sunken')
+recording_details_Frame.grid(row=0,sticky='nsew',padx=10,pady=10)
+
+recording_Frame=ttk.Frame(tab2,relief='sunken')
+recording_Frame.grid(row=1,sticky='nsew',padx=10,pady=10)
+
+##########################################################################################
+
+########SETUP TAB FRAME 1 GUI ARRANGEMENT########
+
+connect_frame_label=ttk.Label(connect_Frame,text="Camera connection\nand reset:",font="Helvetica 14 underline")
+connect_frame_label.grid(column=0,row=0,sticky='w',pady=10,padx=10)
+
+CONNECTbtn=ttk.Button(connect_Frame,width=10, text="Connect",command=camera_find)
+CONNECTbtn.grid(column=0, row=1,sticky='w',pady=10,padx=10)
+
+camera_number_label=ttk.Label(connect_Frame,text="Number of cameras=0")
+camera_number_label.grid(column=0,row=2,sticky='w',pady=10,padx=10)
+
+
+RESETbtn=ttk.Button(connect_Frame, width=10, text="Reset",command=cameras_reset,state='disabled')
+RESETbtn.grid(column=0, row=3,sticky='w',pady=10,padx=10)
+
+
+##########################################################################################
+
+########SETUP TAB FRAME 2 GUI ARRANGEMENT########
+
+setup_frame_label=ttk.Label(setup_Frame,text="Camera\nparameters:",font="Helvetica 14 underline")
+setup_frame_label.grid(column=0,row=0,sticky='w',pady=10,padx=10)
+
+
+camera_select_label=ttk.Label(setup_Frame,text="Select camera:")
+camera_select_label.grid(column=0,row=1,sticky='w',pady=10,padx=10)
+
+choose_camera = tk.StringVar()
+#choose_camera.set( "All" )
+
+menu_camera = ttk.OptionMenu(setup_Frame, choose_camera,options[0], *options,command=update_crop_entries)
+menu_camera.grid(column=1, row=1,sticky='w',padx=10,pady=10)
+
+gs=ttk.Style(root)
+gs.configure('TButton',background='green')
+
+setupSTREAMbtn=ttk.Button(setup_Frame,width=10,text="Stream\nCamera",command=stream_thread,state='disabled')
+setupSTREAMbtn.grid(column=0, row=3,sticky='w',pady=10,padx=10)
+
+setupSTOP_STREAMbtn=ttk.Button(setup_Frame,width=10,text="Stop\nStream",command=stop_stream_thread,state='disabled')
+setupSTOP_STREAMbtn.grid(column=1, row=3,sticky='w',pady=10,padx=10)
+
+Gain_label=ttk.Label(setup_Frame,text="Gain(%)")
+Gain_label.grid(column=0,row=4,sticky='w',pady=10,padx='10')	
+
+Gain_entry=ttk.Entry(setup_Frame,width=7)
+Gain_entry.grid(column=1,row=4,sticky='w',pady=10,padx='10')
+
+Exposure_label=ttk.Label(setup_Frame,text="Exposure(micro sec)")
+Exposure_label.grid(column=0,row=5,sticky='w',pady=10,padx='10')	
+
+Exposure_entry=ttk.Entry(setup_Frame,width=9)
+Exposure_entry.grid(column=1,row=5,sticky='w',pady=10,padx='10')
+
+Crop_label=ttk.Label(setup_Frame,text="Crop parameters:",font="Helvetica 11 underline")
+Crop_label.grid(column=0,row=6,sticky='w',pady=10,padx=10)
+
+XCrop_label=ttk.Label(setup_Frame,text="X-offset")
+XCrop_label.grid(column=0,row=7,sticky='w',pady=10,padx='10')	
+
+xcrop = tk.StringVar()
+
+XCrop_entry=ttk.Entry(setup_Frame,width=5,textvariable=xcrop)
+XCrop_entry.grid(column=1,row=7,sticky='w',pady=10,padx='10')
+XCrop_entry.insert(0,'0')
+
+YCrop_label=ttk.Label(setup_Frame,text="Y-offset")
+YCrop_label.grid(column=2,row=7,sticky='w',pady=10,padx='10')	
+
+ycrop = tk.StringVar()
+
+YCrop_entry=ttk.Entry(setup_Frame,width=5,textvariable=ycrop)
+YCrop_entry.grid(column=3,row=7,sticky='w',pady=10,padx='10')
+YCrop_entry.insert(0,'0')
+
+HeightCrop_label=ttk.Label(setup_Frame,text="Height")
+HeightCrop_label.grid(column=0,row=8,sticky='w',pady=10,padx='10')	
+
+htcrop = tk.StringVar()
+
+HeightCrop_entry=ttk.Entry(setup_Frame,width=5,textvariable=htcrop)
+HeightCrop_entry.grid(column=1,row=8,sticky='w',pady=10,padx='10')
+HeightCrop_entry.insert(0,'0')
+
+WidthCrop_label=ttk.Label(setup_Frame,text="Width")
+WidthCrop_label.grid(column=2,row=8,sticky='w',pady=10,padx='10')
+
+wtcrop = tk.StringVar()	
+
+WidthCrop_entry=ttk.Entry(setup_Frame,width=5,textvariable=wtcrop)
+WidthCrop_entry.grid(column=3,row=8,sticky='w',pady=10,padx='10')
+WidthCrop_entry.insert(0,'0')
+
+CurrentCrop_label=ttk.Label(setup_Frame,text="Current set crop:",font="Helvetica 11 underline")
+CurrentCrop_label.grid(column=0,row=9,sticky='w',pady=10,padx='10')
+
+CurrentCrop_label2=ttk.Label(setup_Frame,text="X=0,Y=0\nHeight=0,Width=0")
+CurrentCrop_label2.grid(column=0,row=10,sticky='w',pady=10,padx='10')
+
+
+##########################################################################################
+
+########ACQUISITION TAB FRAME 1 GUI ARRANGEMENT########
+
+frame1=ttk.Frame(recording_details_Frame)
+frame1.grid(row=0,sticky='nsew',padx=10)
+
+recording_details_frame_label=ttk.Label(frame1,text="Recording Details",font="Helvetica 14 underline")
+recording_details_frame_label.grid(column=0,row=0,sticky='w',pady=10,padx=10)
+
+Folder_display=ttk.Label(frame1,text='Destination:',font='Helvetica 11 underline')
+Folder_display.grid(column=0,row=1,sticky='w',padx=10,pady=10)
+
+Folder_display_path=ttk.Label(frame1,text='Desktop/FLIR Recordings/')
+Folder_display_path.grid(column=0,row=2,sticky='w',padx=10,pady=10)
+
+Browse_button=ttk.Button(frame1,text='Browse',width=10,command=select_folder)
+Browse_button.grid(column=0,row=3,sticky='w',padx=10,pady=10)
+
+frame2=ttk.Frame(recording_details_Frame)
+frame2.grid(row=1,sticky='nsew',padx=10)
+
+Experiment_name_label=ttk.Label(frame2, text='Animal Name:')
+Experiment_name_label.grid(column=0,row=0,sticky='w',padx=10,pady=10)
+
+Experiment_name_entry=ttk.Entry(frame2,width=10)
+Experiment_name_entry.grid(column=1,row=0,sticky='w',padx=10,pady=10)
+Experiment_name_entry.bind('<Return>', select_experiment)
+Experiment_name_entry.bind('<FocusOut>', select_experiment)
+
+Recording_time_label=ttk.Label(frame2, text='Recording Time(s)')
+Recording_time_label.grid(column=0,row=1,sticky='w',padx=10,pady=10)
+
+Recording_time_entry=ttk.Entry(frame2,width=10)
+Recording_time_entry.grid(column=1,row=1,sticky='w',padx=10,pady=10)
+Recording_time_entry.insert(0,"300")
+
+FPS_label=ttk.Label(frame2, text='Frames per second(fps)')
+FPS_label.grid(column=2,row=1,sticky='w',padx=10,pady=10)
+
+FPS_entry=ttk.Entry(frame2,width=5)
+FPS_entry.grid(column=3,row=1,sticky='w',padx=10,pady=10)
+FPS_entry.insert(0,"30")
+
+FPV_label=ttk.Label(frame2, text='Frames per video(fpv)')
+FPV_label.grid(column=2,row=2,sticky='w',padx=10,pady=10)
+
+FPV_entry=ttk.Entry(frame2,width=5)
+FPV_entry.grid(column=3,row=2,sticky='w',padx=10,pady=10)
+FPV_entry.insert(0,"1000")
+
+##########################################################################################
+
+########ACQUISITION TAB FRAME 1 GUI ARRANGEMENT########
+
+recording_frame_label=ttk.Label(recording_Frame,text="Recording\nControls",font="Helvetica 14 underline")
+recording_frame_label.grid(column=0,row=0,sticky='w',pady=10,padx=10)
+
+recordSTREAMbtn=ttk.Button(recording_Frame,width=10,text="Stream\nCamera",command=pooled_stream)
+recordSTREAMbtn.grid(column=0, row=1,sticky='w',pady=10,padx=10)
+
+#recordSTOP_STREAMbtn=ttk.Button(recording_Frame,width=10,text="Stop\nStream")
+#recordSTOP_STREAMbtn.grid(column=1, row=1,sticky='w',pady=10,padx=10)
+
+RECORD_btn=ttk.Button(recording_Frame,width=10,text="Record",command=pooled_record)
+RECORD_btn.grid(column=0, row=2,sticky='w',pady=10,padx=10)
+
+# ABORT_btn=ttk.Button(recording_Frame,width=10,text="Abort")
+# ABORT_btn.grid(column=0, row=3,sticky='w',pady=10,padx=10)
+
+Recording_status=ttk.Label(recording_Frame,text='Not Recording',font="Helevtica 11 underline")
+Recording_status.grid(column=1,row=2,sticky='w',pady=10,padx=10)
+
+##########################################################################################
+
+#Start the GUI loop
+
+if __name__ == '__main__':
+	root.mainloop()
