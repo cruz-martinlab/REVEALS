@@ -26,5 +26,5 @@ to create a new environment. Note that most of the packages required by the appl
     ```pip install ttkthemes``` <br>
 5. The environment is now ready to run __reveals.py__. Download the reveals.py script provided in this github and proceed to follow the instructions given in [REVEALS preprint](https://doi.org/10.1101/2023.08.22.554365).
   
-
+NOTE: Please refer to Fig1 and Fig2 in the repository for updated view to the publication https://academic.oup.com/cercor/article/34/10/bhae421/7824680.
 
